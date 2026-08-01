@@ -2,12 +2,12 @@ import React, { useEffect, useState } from 'react';
 import {
   Building2, Bell, Clock, Mail, MessageSquare, Smartphone,
   Lock, Shield, Save, Loader2, CheckCircle, AlertCircle,
-  Zap, ChevronRight,
+  Zap, ChevronRight, Database, Trash2, Download, Upload, RotateCcw,
 } from 'lucide-react';
-import api from '../services/api';
+import api, { getStoredRecords, saveStoredRecords } from '../services/api';
 import { useToast } from '../components/Toast';
 
-type SettingsTab = 'company' | 'notifications' | 'reminders' | 'email' | 'whatsapp' | 'sms' | 'security';
+type SettingsTab = 'company' | 'notifications' | 'reminders' | 'email' | 'whatsapp' | 'sms' | 'security' | 'backup' | 'archived';
 
 const TABS: { id: SettingsTab; label: string; icon: React.ReactNode }[] = [
   { id: 'company',       label: 'Company',              icon: <Building2    className="w-4 h-4" /> },
@@ -16,6 +16,8 @@ const TABS: { id: SettingsTab; label: string; icon: React.ReactNode }[] = [
   { id: 'email',         label: 'Email / SMTP',         icon: <Mail         className="w-4 h-4" /> },
   { id: 'whatsapp',      label: 'WhatsApp (Twilio)',    icon: <MessageSquare className="w-4 h-4" /> },
   { id: 'sms',           label: 'SMS (Twilio)',         icon: <Smartphone   className="w-4 h-4" /> },
+  { id: 'backup',        label: 'Database Backup',      icon: <Database     className="w-4 h-4" /> },
+  { id: 'archived',      label: 'Archived Trash',       icon: <Trash2       className="w-4 h-4" /> },
   { id: 'security',      label: 'Security',             icon: <Lock         className="w-4 h-4" /> },
 ];
 
@@ -58,6 +60,9 @@ export const Settings: React.FC = () => {
   const [isTesting, setIsTesting]                     = useState(false);
   const [testResult, setTestResult]                   = useState<string | null>(null);
 
+  // Archived items state
+  const [archivedCustomers, setArchivedCustomers]     = useState<any[]>([]);
+
   const fetchSettings = async () => {
     setIsLoading(true);
     try {
@@ -78,6 +83,10 @@ export const Settings: React.FC = () => {
       setTwilioWhatsApp(d.twilio_whatsapp_number || '');
       setTwilioPhone(d.twilio_phone_number || '');
       setReminderTime(d.reminder_time || '09:00');
+
+      // Load archived items
+      const allCust = getStoredRecords<any>('shield_crm_customers_v2');
+      setArchivedCustomers(allCust.filter(c => c.archived));
     } catch (err) { console.error(err); }
     finally { setIsLoading(false); }
   };
@@ -102,6 +111,55 @@ export const Settings: React.FC = () => {
       success('Settings saved successfully!');
     } catch { toastError('Failed to save settings.'); }
     finally { setIsSaving(false); }
+  };
+
+  const handleExportBackup = () => {
+    const backupData = {
+      customers: getStoredRecords('shield_crm_customers_v2'),
+      policies: getStoredRecords('shield_crm_policies_v2'),
+      vehicles: getStoredRecords('shield_crm_vehicles_v2'),
+      logs: getStoredRecords('shield_crm_logs_v2'),
+      exportedAt: new Date().toISOString(),
+    };
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupData, null, 2));
+    const downloadAnchor = document.createElement('a');
+    downloadAnchor.setAttribute("href", dataStr);
+    downloadAnchor.setAttribute("download", `shield_crm_backup_${new Date().toISOString().slice(0,10)}.json`);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+    success('Database backup exported successfully!');
+  };
+
+  const handleImportBackup = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const fileReader = new FileReader();
+    if (e.target.files && e.target.files[0]) {
+      fileReader.readAsText(e.target.files[0], "UTF-8");
+      fileReader.onload = (event) => {
+        try {
+          const parsed = JSON.parse(event.target?.result as string);
+          if (parsed.customers) saveStoredRecords('shield_crm_customers_v2', parsed.customers);
+          if (parsed.policies) saveStoredRecords('shield_crm_policies_v2', parsed.policies);
+          if (parsed.vehicles) saveStoredRecords('shield_crm_vehicles_v2', parsed.vehicles);
+          if (parsed.logs) saveStoredRecords('shield_crm_logs_v2', parsed.logs);
+          success('Database restored successfully from backup!');
+          fetchSettings();
+        } catch {
+          toastError('Invalid backup file format.');
+        }
+      };
+    }
+  };
+
+  const handleRestoreCustomer = (id: string) => {
+    const allCust = getStoredRecords<any>('shield_crm_customers_v2');
+    const target = allCust.find(c => c.id === id);
+    if (target) {
+      target.archived = false;
+      saveStoredRecords('shield_crm_customers_v2', allCust);
+      setArchivedCustomers(allCust.filter(c => c.archived));
+      success(`Restored customer ${target.name}`);
+    }
   };
 
   const handleSendTest = async (e: React.FormEvent) => {
@@ -137,6 +195,74 @@ export const Settings: React.FC = () => {
                 <input type="tel" value={companyPhone} onChange={e => setCompanyPhone(e.target.value)} className="field" placeholder="+1 555 0199" />
               </FieldGroup>
             </div>
+          </div>
+        );
+
+      case 'backup':
+        return (
+          <div className="space-y-6">
+            <SectionTitle title="Database Backup & Restore" subtitle="Export or restore your full commercial CRM database" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+              
+              <div className="p-5 rounded-2xl bg-white/[0.03] border border-white/[0.06] space-y-4">
+                <div className="w-10 h-10 rounded-xl bg-brand-600/15 border border-brand-600/30 flex items-center justify-center text-brand-400">
+                  <Download className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-text-primary text-base">Export Database Backup</h4>
+                  <p className="text-xs text-text-muted mt-1">Download a full JSON backup of all customers, vehicles, policies, and logs for permanent offline archive.</p>
+                </div>
+                <button onClick={handleExportBackup} className="btn-primary text-xs w-full py-2.5 flex items-center justify-center gap-2 font-bold">
+                  <Download className="w-4 h-4" /> Download Backup (.json)
+                </button>
+              </div>
+
+              <div className="p-5 rounded-2xl bg-white/[0.03] border border-white/[0.06] space-y-4">
+                <div className="w-10 h-10 rounded-xl bg-purple-600/15 border border-purple-600/30 flex items-center justify-center text-purple-400">
+                  <Upload className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-text-primary text-base">Restore Database from File</h4>
+                  <p className="text-xs text-text-muted mt-1">Import a previously saved `.json` database backup to restore customer records.</p>
+                </div>
+                <label className="btn-ghost border border-white/10 text-xs w-full py-2.5 flex items-center justify-center gap-2 font-bold cursor-pointer hover:bg-white/[0.05]">
+                  <Upload className="w-4 h-4 text-purple-400" /> Choose Backup File
+                  <input type="file" accept=".json" onChange={handleImportBackup} className="hidden" />
+                </label>
+              </div>
+
+            </div>
+          </div>
+        );
+
+      case 'archived':
+        return (
+          <div className="space-y-6">
+            <SectionTitle title="Archived Records / Trash Manager" subtitle="View and restore soft-deleted records" />
+            {archivedCustomers.length === 0 ? (
+              <div className="p-8 text-center border border-dashed border-white/10 rounded-2xl">
+                <Trash2 className="w-8 h-8 text-text-subtle mx-auto mb-2 opacity-50" />
+                <p className="text-sm font-semibold text-text-muted">Trash is empty</p>
+                <p className="text-xs text-text-subtle mt-0.5">No soft-deleted records pending restoration.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {archivedCustomers.map(c => (
+                  <div key={c.id} className="flex items-center justify-between p-4 rounded-xl bg-white/[0.03] border border-white/[0.06]">
+                    <div>
+                      <p className="text-sm font-bold text-text-primary">{c.name}</p>
+                      <p className="text-xs text-text-subtle">📱 {c.mobile} · Archived on {new Date(c.archivedAt || Date.now()).toLocaleDateString()}</p>
+                    </div>
+                    <button
+                      onClick={() => handleRestoreCustomer(c.id)}
+                      className="px-3 py-1.5 rounded-lg bg-brand-600/20 border border-brand-600/30 text-brand-400 text-xs font-bold flex items-center gap-1.5 hover:bg-brand-600/30"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" /> Restore Record
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         );
 
@@ -292,7 +418,7 @@ export const Settings: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-text-primary tracking-tight">Settings</h1>
-          <p className="text-text-muted text-sm mt-1">Configure your insurance platform</p>
+          <p className="text-text-muted text-sm mt-1">Configure your insurance platform & database backups</p>
         </div>
         <button onClick={handleSave} disabled={isSaving} className="btn-primary text-sm px-5 py-2.5">
           {isSaving ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving...</> : <><Save className="w-4 h-4" /> Save Changes</>}
@@ -301,7 +427,7 @@ export const Settings: React.FC = () => {
 
       <div className="flex flex-col lg:flex-row gap-5">
         {/* Sidebar nav */}
-        <nav className="lg:w-52 flex-shrink-0">
+        <nav className="lg:w-56 flex-shrink-0">
           <div className="glass-card p-2 space-y-0.5">
             {TABS.map(tab => (
               <button

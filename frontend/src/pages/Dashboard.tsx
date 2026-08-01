@@ -358,6 +358,33 @@ export const Dashboard: React.FC = () => {
         </div>
       </div>
 
+      {/* ── INITIAL WELCOME EMPTY BANNER ── */}
+      {kpi.totalCustomers === 0 && (
+        <div className="glass-card p-8 text-center border-brand-500/30 bg-gradient-to-b from-brand-600/10 to-transparent relative overflow-hidden animate-slide-up">
+          <div className="w-16 h-16 rounded-2xl bg-brand-600/20 border border-brand-600/30 flex items-center justify-center mx-auto mb-4 text-brand-400">
+            <Zap className="w-8 h-8" />
+          </div>
+          <h2 className="text-2xl font-bold text-text-primary">Welcome to Shield Insurance CRM</h2>
+          <p className="text-text-muted max-w-md mx-auto mt-2 text-sm">
+            Start by adding your first customer or uploading an insurance policy.
+          </p>
+          <div className="flex flex-wrap items-center justify-center gap-4 mt-6">
+            <button
+              onClick={() => setIsAddOpen(true)}
+              className="btn-primary text-sm px-5 py-2.5 flex items-center gap-2 font-bold shadow-lg shadow-brand-500/20"
+            >
+              <UserPlus className="w-4 h-4" /> ➕ Add Customer
+            </button>
+            <button
+              onClick={() => navigate('/upload-policy')}
+              className="btn-ghost border border-white/10 text-sm px-5 py-2.5 flex items-center gap-2 font-bold hover:bg-white/[0.05]"
+            >
+              <Sparkles className="w-4 h-4 text-amber-300" /> 📄 Upload Insurance Policy
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ── ROW 1 · KPI CARDS ────────────────────────────────────────── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <KpiCard

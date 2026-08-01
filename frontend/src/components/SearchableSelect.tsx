@@ -38,7 +38,9 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
     typeof opt === 'string' ? { value: opt, label: opt } : opt
   );
 
-  const selectedOption = normalizedOptions.find((o) => o.value === value);
+  const selectedOption =
+    normalizedOptions.find((o) => o.value.toLowerCase() === (value || '').toLowerCase()) ||
+    (value ? { value, label: value } : undefined);
 
   const filteredOptions = normalizedOptions.filter((o) =>
     o.label.toLowerCase().includes(search.toLowerCase())

@@ -148,14 +148,14 @@ export function extractRealPolicyData(rawInput: string, filename: string): any {
   let makeObj = findField([
     /(?:Make|Vehicle\s*Make)\s*[:.-]?\s*([A-Za-z]+)/i,
     /\b(HONDA|HERO|TVS|BAJAJ|ROYAL ENFIELD|YAMAHA|SUZUKI|KTM|MARUTI|HYUNDAI|TATA|MAHINDRA|TOYOTA|KIA)\b/i
-  ], 'HONDA', 98);
-  if (!makeObj.value) makeObj = { value: 'HONDA', confidence: 98 };
+  ], 'Honda', 98);
+  if (!makeObj.value) makeObj = { value: 'Honda', confidence: 98 };
 
   let modelObj = findField([
     /(?:Model|Vehicle\s*Model)\s*[:.-]?\s*([A-Za-z0-9\s]+?)(?=\s*Variant|\s*CC|\s*Year|\s*\d{3}|$)/i,
     /\b(ACTIVA[I]?|JUPITER|SPLENDOR|PULSAR|CHETAK|NEXON|CRETA|SWIFT|BALENO|SELTOS)\b/i
-  ], 'ACTIVA I', 98);
-  if (!modelObj.value) modelObj = { value: 'ACTIVA I', confidence: 98 };
+  ], 'Activa I', 98);
+  if (!modelObj.value) modelObj = { value: 'Activa I', confidence: 98 };
 
   let variantObj = findField([
     /(?:Variant)\s*[:.-]?\s*([A-Za-z0-9\s-]+?)(?=\s*CC|\s*Year|\s*110|$)/i

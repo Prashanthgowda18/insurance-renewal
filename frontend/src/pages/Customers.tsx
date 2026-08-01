@@ -174,8 +174,8 @@ export const Customers: React.FC = () => {
         <div className="glass-card">
           <EmptyState
             icon={<Users className="w-8 h-8" />}
-            title="No Customers Found"
-            description={search ? 'No customers match your search. Try a different query.' : 'Start by adding your first customer to track their insurance policies.'}
+            title="No data found."
+            description={search ? 'No customer records match your search query.' : 'No customer records available. Start by adding your first customer or uploading an insurance policy.'}
             action={{ label: 'Add First Customer', onClick: () => setIsAddOpen(true), icon: <Plus className="w-4 h-4" /> }}
           />
         </div>
@@ -330,9 +330,10 @@ export const Customers: React.FC = () => {
 
       <ConfirmDialog
         isOpen={!!deleteId}
-        title="Delete Customer Profile?"
-        message="This is permanent and will also remove all associated vehicles, policies, and reminder schedules."
-        confirmLabel="Delete Customer"
+        title="Delete Customer"
+        message={`This action will permanently delete the customer and all associated vehicles, insurance policies, renewal history, reminder history, uploaded documents, and activity logs.\n\nThis action cannot be undone.`}
+        confirmLabel="Delete Permanently"
+        cancelLabel="Cancel"
         isLoading={isDeleting}
         onConfirm={handleDelete}
         onCancel={() => setDeleteId(null)}

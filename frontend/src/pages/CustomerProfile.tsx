@@ -2,13 +2,15 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   User, ArrowLeft, Car, ShieldCheck, BellRing,
-  History, FileText, Clock, Loader2, AlertTriangle,
+  History, FileText, Clock, Loader2, AlertTriangle, Trash2,
   Phone, Mail, MapPin, MessageSquare,
 } from 'lucide-react';
 import api from '../services/api';
 import { RenewPolicyModal } from './RenewPolicyModal';
 import { StatusBadge, DaysBadge } from '../components/StatusBadge';
 import { WhatsAppButton } from '../components/WhatsAppButton';
+import { ConfirmDialog } from '../components/ConfirmDialog';
+import { useToast } from '../components/Toast';
 
 interface RenewalLog {
   id: string;
@@ -93,6 +95,24 @@ export const CustomerProfile: React.FC = () => {
   const [activeTab, setActiveTab] = useState('overview');
   const [isLoading, setIsLoading] = useState(false);
   const [renewPolicyId, setRenewPolicyId] = useState<string | null>(null);
+  const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const { success, error: toastError } = useToast();
+
+  const handleDeleteCustomer = async () => {
+    if (!id) return;
+    setIsDeleting(true);
+    try {
+      await api.delete(`/customers/${id}`);
+      success('Customer and all related records deleted successfully.');
+      navigate('/customers');
+    } catch {
+      toastError('Failed to delete customer.');
+    } finally {
+      setIsDeleting(false);
+      setIsConfirmDeleteOpen(false);
+    }
+  };
 
   const fetchProfileDetails = async () => {
     if (!id) return;
@@ -242,6 +262,12 @@ export const CustomerProfile: React.FC = () => {
                 className="px-4 py-3 rounded-xl bg-brand-600/10 border border-brand-600/20 text-brand-400 font-bold text-xs hover:bg-brand-600/20 transition-all flex items-center gap-1.5"
               >
                 📱 QR Badge
+              </button>
+              <button
+                onClick={() => setIsConfirmDeleteOpen(true)}
+                className="px-4 py-3 rounded-xl bg-danger/15 border border-danger/30 text-danger font-bold text-xs hover:bg-danger/25 transition-all flex items-center gap-1.5 shadow-lg shadow-danger/10"
+              >
+                <Trash2 className="w-4 h-4" /> Delete Permanently
               </button>
               <div className="px-4 py-3 rounded-xl bg-white/[0.03] border border-white/[0.06] text-center">
                 <p className="text-2xs text-text-subtle uppercase tracking-widest">Channel</p>
@@ -514,6 +540,17 @@ export const CustomerProfile: React.FC = () => {
         policyId={renewPolicyId}
         onClose={() => setRenewPolicyId(null)}
         onSuccess={() => { setRenewPolicyId(null); fetchProfileDetails(); }}
+      />
+
+      <ConfirmDialog
+        isOpen={isConfirmDeleteOpen}
+        title="Delete Customer"
+        message={`This action will permanently delete the customer and all associated vehicles, insurance policies, renewal history, reminder history, uploaded documents, and activity logs.\n\nThis action cannot be undone.`}
+        confirmLabel="Delete Permanently"
+        cancelLabel="Cancel"
+        isLoading={isDeleting}
+        onConfirm={handleDeleteCustomer}
+        onCancel={() => setIsConfirmDeleteOpen(false)}
       />
     </div>
   );

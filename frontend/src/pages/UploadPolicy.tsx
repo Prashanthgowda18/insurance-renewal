@@ -99,6 +99,10 @@ export const UploadPolicy: React.FC = () => {
       toastError('Unsupported format. Please upload PDF, JPG, JPEG, or PNG.');
       return;
     }
+
+    // Always clear previous state and OCR cache before processing new document
+    setExtractedData(null);
+    setSaveSuccessData(null);
     setFile(selectedFile);
     processDocument(selectedFile);
   };
@@ -112,6 +116,9 @@ export const UploadPolicy: React.FC = () => {
     }, 250);
 
     try {
+      const fileExt = docFile.name.split('.').pop() || 'pdf';
+      const uniqueFilename = `policy-${Math.floor(Date.now() / 1000)}-${Math.floor(1000 + Math.random() * 9000)}.${fileExt}`;
+
       const reader = new FileReader();
       reader.readAsDataURL(docFile);
       reader.onload = async () => {
@@ -119,7 +126,9 @@ export const UploadPolicy: React.FC = () => {
           const base64String = reader.result as string;
           const res = await api.post('/policies/extract-policy', {
             fileBase64: base64String,
-            filename: docFile.name,
+            filename: uniqueFilename,
+            originalName: docFile.name,
+            timestamp: Date.now(),
           });
 
           clearInterval(progressInterval);
@@ -127,7 +136,7 @@ export const UploadPolicy: React.FC = () => {
           setTimeout(() => {
             setExtractedData(res.data.extractedData);
             setIsExtracting(false);
-            success('Document extracted successfully! Review details below.');
+            success('Insurance policy processed successfully.');
           }, 400);
         } catch (err: any) {
           clearInterval(progressInterval);
@@ -314,7 +323,7 @@ export const UploadPolicy: React.FC = () => {
             <Sparkles className="w-8 h-8 text-brand-400 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-pulse" />
           </div>
           <div>
-            <h3 className="text-lg font-bold text-text-primary">Extracting Document Data with AI...</h3>
+            <h3 className="text-lg font-bold text-text-primary">Processing new insurance policy...</h3>
             <p className="text-xs text-text-subtle mt-1 max-w-md mx-auto">
               Reading policy headers, registration numbers, customer info, IDV, and policy dates across major Indian insurers.
             </p>

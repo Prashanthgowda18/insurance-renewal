@@ -66,7 +66,7 @@ export const Customers: React.FC = () => {
       const res = await api.get('/customers', {
         params: { search: search || undefined, status: filterStatus || undefined },
       });
-      setCustomers(res.data || []);
+      setCustomers(Array.isArray(res.data) ? res.data : (res.data?.customers || []));
     } catch { toastError('Failed to load customers.'); }
     finally { setIsLoading(false); }
   };

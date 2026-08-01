@@ -72,7 +72,7 @@ export const Vehicles: React.FC = () => {
     setIsLoading(true);
     try {
       const res = await api.get('/vehicles', { params: { search: search || undefined } });
-      setVehicles(res.data || []);
+      setVehicles(Array.isArray(res.data) ? res.data : (res.data?.vehicles || []));
     } catch (err) { console.error(err); }
     finally { setIsLoading(false); }
   };

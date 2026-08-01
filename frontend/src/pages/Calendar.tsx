@@ -27,7 +27,7 @@ export const Calendar: React.FC = () => {
       setIsLoading(true);
       try {
         const res = await api.get('/policies');
-        setPolicies(res.data || []);
+        setPolicies(Array.isArray(res.data) ? res.data : (res.data?.policies || []));
       } catch (err) { console.error(err); }
       finally { setIsLoading(false); }
     };

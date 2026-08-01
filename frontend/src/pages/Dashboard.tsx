@@ -239,9 +239,9 @@ export const Dashboard: React.FC = () => {
         api.get('/logs').catch(() => ({ data: [] })),
       ]);
 
-      const policies: any[]  = polRes.data  || [];
-      const customers: any[] = custRes.data || [];
-      const logs: any[]      = logsRes.data || [];
+      const policies: any[]  = Array.isArray(polRes.data) ? polRes.data : (polRes.data?.policies || []);
+      const customers: any[] = Array.isArray(custRes.data) ? custRes.data : (custRes.data?.customers || []);
+      const logs: any[]      = Array.isArray(logsRes.data) ? logsRes.data : (logsRes.data?.logs || []);
 
       // ── KPIs ──
       const active        = policies.filter(p => p.status === 'active').length;

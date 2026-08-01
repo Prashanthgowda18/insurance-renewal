@@ -28,7 +28,7 @@ export const ActivityLogs: React.FC = () => {
     setIsLoading(true);
     try {
       const res = await api.get('/logs');
-      setLogs(res.data || []);
+      setLogs(Array.isArray(res.data) ? res.data : (res.data?.logs || []));
     } catch (err) { console.error(err); }
     finally { setIsLoading(false); }
   };

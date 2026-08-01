@@ -34,7 +34,7 @@ export const ReminderHistory: React.FC = () => {
     setIsLoading(true);
     try {
       const res = await api.get('/policies/notifications');
-      setRecords(res.data || []);
+      setRecords(Array.isArray(res.data) ? res.data : (res.data?.records || []));
     } catch (err) { console.error(err); }
     finally { setIsLoading(false); }
   };

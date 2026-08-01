@@ -41,7 +41,7 @@ export const Policies: React.FC = () => {
     setIsLoading(true);
     try {
       const res = await api.get('/policies');
-      let data: Policy[] = res.data || [];
+      let data: Policy[] = Array.isArray(res.data) ? res.data : (res.data?.policies || []);
       if (search) data = data.filter(p =>
         p.policyNumber?.toLowerCase().includes(search.toLowerCase()) ||
         p.insuranceCompany?.toLowerCase().includes(search.toLowerCase()) ||

@@ -303,8 +303,8 @@ api.interceptors.response.use(
             const customers = getStoredRecords<any>(STORAGE_KEYS.CUSTOMERS);
             const found = customers.find((c) => c.id === customerId);
             if (found) {
-              const vehicles = getStoredRecords<any>(STORAGE_KEYS.VEHICLES).filter(v => v.customerId === found.id);
-              const policies = getStoredRecords<any>(STORAGE_KEYS.POLICIES).filter(p => p.customerId === found.id);
+              const vehicles = getStoredRecords<any>(STORAGE_KEYS.VEHICLES).filter(v => v.customerId === found.id && !v.archived);
+              const policies = getStoredRecords<any>(STORAGE_KEYS.POLICIES).filter(p => p.customerId === found.id && !p.archived);
               return Promise.resolve({
                 data: {
                   ...found,
@@ -377,7 +377,7 @@ api.interceptors.response.use(
           const vehicles = getStoredRecords<any>(STORAGE_KEYS.VEHICLES);
           const policies = getStoredRecords<any>(STORAGE_KEYS.POLICIES);
 
-          // 1. Create or update customer (Ensure name is NEVER empty!)
+          // 1. Create or update customer
           let customerName = custData.name && custData.name.trim().length > 0 ? custData.name.trim() : 'Lakshmi V';
           let customerMobile = custData.mobile && custData.mobile.trim().length > 0 ? custData.mobile.trim() : '9632537834';
 
@@ -563,20 +563,87 @@ api.interceptors.response.use(
         }
       }
 
-      // ── DELETE / Soft-Delete Requests ──
+      // ── CASCADE DELETE / Soft-Delete Requests ──
       if (method === 'delete') {
-        const customerId = url.split('/customers/')[1];
-        if (customerId) {
-          const customers = getStoredRecords<any>(STORAGE_KEYS.CUSTOMERS);
-          const target = customers.find(c => c.id === customerId);
-          if (target) {
-            target.archived = true;
-            target.archivedAt = new Date().toISOString();
-            saveStoredRecords(STORAGE_KEYS.CUSTOMERS, customers);
-            recordActivityLog('delete', 'customers', `Archived customer ${target.name}`);
+        if (url.includes('/customers/')) {
+          const customerId = url.split('/customers/')[1]?.split('?')[0];
+          if (customerId) {
+            const customers = getStoredRecords<any>(STORAGE_KEYS.CUSTOMERS);
+            const vehicles = getStoredRecords<any>(STORAGE_KEYS.VEHICLES);
+            const policies = getStoredRecords<any>(STORAGE_KEYS.POLICIES);
+
+            const targetCust = customers.find(c => c.id === customerId);
+            if (targetCust) {
+              targetCust.archived = true;
+              targetCust.archivedAt = new Date().toISOString();
+              saveStoredRecords(STORAGE_KEYS.CUSTOMERS, customers);
+
+              // Cascade archive vehicles belonging to this customer
+              vehicles.forEach(v => {
+                if (v.customerId === customerId) {
+                  v.archived = true;
+                  v.archivedAt = new Date().toISOString();
+                }
+              });
+              saveStoredRecords(STORAGE_KEYS.VEHICLES, vehicles);
+
+              // Cascade archive policies belonging to this customer
+              policies.forEach(p => {
+                if (p.customerId === customerId) {
+                  p.archived = true;
+                  p.archivedAt = new Date().toISOString();
+                }
+              });
+              saveStoredRecords(STORAGE_KEYS.POLICIES, policies);
+
+              recordActivityLog('delete', 'customers', `Deleted customer ${targetCust.name} and all associated vehicles, policies, and renewals.`);
+            }
           }
+          return Promise.resolve({ data: { success: true, message: 'Customer and all associated vehicles, policies, and renewals deleted successfully.' } });
         }
-        return Promise.resolve({ data: { success: true, message: 'Record archived safely.' } });
+
+        if (url.includes('/vehicles/')) {
+          const vehicleId = url.split('/vehicles/')[1]?.split('?')[0];
+          if (vehicleId) {
+            const vehicles = getStoredRecords<any>(STORAGE_KEYS.VEHICLES);
+            const policies = getStoredRecords<any>(STORAGE_KEYS.POLICIES);
+
+            const targetVeh = vehicles.find(v => v.id === vehicleId);
+            if (targetVeh) {
+              targetVeh.archived = true;
+              targetVeh.archivedAt = new Date().toISOString();
+              saveStoredRecords(STORAGE_KEYS.VEHICLES, vehicles);
+
+              // Cascade archive policies belonging to this vehicle
+              policies.forEach(p => {
+                if (p.vehicleId === vehicleId) {
+                  p.archived = true;
+                  p.archivedAt = new Date().toISOString();
+                }
+              });
+              saveStoredRecords(STORAGE_KEYS.POLICIES, policies);
+
+              recordActivityLog('delete', 'vehicles', `Deleted vehicle ${targetVeh.vehicleNumber} and associated policies.`);
+            }
+          }
+          return Promise.resolve({ data: { success: true, message: 'Vehicle and associated policies deleted successfully.' } });
+        }
+
+        if (url.includes('/policies/')) {
+          const policyId = url.split('/policies/')[1]?.split('?')[0];
+          if (policyId) {
+            const policies = getStoredRecords<any>(STORAGE_KEYS.POLICIES);
+            const targetPol = policies.find(p => p.id === policyId);
+            if (targetPol) {
+              targetPol.archived = true;
+              targetPol.archivedAt = new Date().toISOString();
+              saveStoredRecords(STORAGE_KEYS.POLICIES, policies);
+
+              recordActivityLog('delete', 'policies', `Deleted policy ${targetPol.policyNumber}.`);
+            }
+          }
+          return Promise.resolve({ data: { success: true, message: 'Policy deleted successfully.' } });
+        }
       }
     }
 

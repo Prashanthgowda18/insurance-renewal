@@ -1,0 +1,150 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Admin {
+  id           String        @id @default(uuid())
+  name         String
+  email        String        @unique
+  passwordHash String        @map("password_hash")
+  role         String        @default("admin")
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+  activityLogs ActivityLog[]
+
+  @@map("admins")
+}
+
+model Customer {
+  id                           String     @id @default(uuid())
+  name                         String
+  mobile                       String     @unique
+  altMobile                    String?    @map("alt_mobile")
+  email                        String?    @unique
+  address                      String?
+  notes                        String?
+  preferredNotificationChannel String     @default("whatsapp") @map("preferred_notification_channel") // whatsapp, sms, email
+  preferredLanguage            String     @default("en") @map("preferred_language")
+  customerStatus               String     @default("active") @map("customer_status") // active, inactive
+  createdAt                    DateTime   @default(now()) @map("created_at")
+  updatedAt                    DateTime   @updatedAt @map("updated_at")
+  vehicles                     Vehicle[]
+
+  @@index([mobile])
+  @@map("customers")
+}
+
+model Vehicle {
+  id                String            @id @default(uuid())
+  customerId        String            @map("customer_id")
+  customer          Customer          @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  vehicleNumber     String            @unique @map("vehicle_number")
+  vehicleType       String            @map("vehicle_type") // two_wheeler, four_wheeler, commercial, etc.
+  make              String?
+  model             String?
+  manufacturingYear Int?              @map("manufacturing_year")
+  fuelType          String?           @map("fuel_type") // petrol, diesel, cng, electric
+  createdAt         DateTime          @default(now()) @map("created_at")
+  updatedAt         DateTime          @updatedAt @map("updated_at")
+  policies          InsurancePolicy[]
+
+  @@index([vehicleNumber])
+  @@map("vehicles")
+}
+
+model InsurancePolicy {
+  id                 String             @id @default(uuid())
+  vehicleId          String             @map("vehicle_id")
+  vehicle            Vehicle            @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  insuranceCompany   String             @map("insurance_company")
+  policyNumber       String             @unique @map("policy_number")
+  insuranceType      String             @map("insurance_type") // comprehensive, third_party, own_damage
+  startDate          DateTime           @map("start_date")
+  expiryDate         DateTime           @map("expiry_date")
+  status             String             @default("active") // active, expired
+  renewalStatus      String             @default("pending") @map("renewal_status") // pending, reminder_sent, customer_contacted, renewed, expired, not_interested
+  policyDocumentUrl  String?            @map("policy_document_url")
+  renewalAmount      Decimal            @map("renewal_amount")
+  lastReminderDate   DateTime?          @map("last_reminder_date")
+  nextReminderDate   DateTime?          @map("next_reminder_date")
+  createdAt          DateTime           @default(now()) @map("created_at")
+  updatedAt          DateTime           @updatedAt @map("updated_at")
+  renewals           Renewal[]
+  reminders          ReminderSchedule[]
+
+  @@index([expiryDate])
+  @@index([policyNumber])
+  @@index([renewalStatus])
+  @@map("insurance_policies")
+}
+
+model Renewal {
+  id            String          @id @default(uuid())
+  policyId      String          @map("policy_id")
+  policy        InsurancePolicy @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  renewalDate   DateTime        @default(now()) @map("renewal_date")
+  newExpiryDate DateTime        @map("new_expiry_date")
+  renewedBy     String          @map("renewed_by") // admin email/id
+  remarks       String?
+  createdAt     DateTime        @default(now()) @map("created_at")
+
+  @@map("renewals")
+}
+
+model ReminderSchedule {
+  id            String                @id @default(uuid())
+  policyId      String                @map("policy_id")
+  policy        InsurancePolicy       @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  reminderType  String                @map("reminder_type") // 30d, 15d, 7d, 3d, 1d, expiry
+  scheduledDate DateTime              @map("scheduled_date")
+  sent          Boolean               @default(false)
+  createdAt     DateTime              @default(now()) @map("created_at")
+  updatedAt     DateTime              @updatedAt @map("updated_at")
+  notifications NotificationHistory[]
+
+  @@index([scheduledDate, sent])
+  @@map("reminder_schedules")
+}
+
+model NotificationHistory {
+  id             String           @id @default(uuid())
+  reminderId     String           @map("reminder_id")
+  reminder       ReminderSchedule @relation(fields: [reminderId], references: [id], onDelete: Cascade)
+  recipientType  String           @map("recipient_type") // customer, admin
+  channel        String           // sms, whatsapp, email
+  status         String           @default("pending") // pending, sent, failed
+  deliveryResult String?          @map("delivery_result")
+  attemptCount   Int              @default(1) @map("attempt_count")
+  sentAt         DateTime?        @map("sent_at")
+  createdAt      DateTime         @default(now()) @map("created_at")
+
+  @@map("notification_histories")
+}
+
+model ActivityLog {
+  id          String   @id @default(uuid())
+  adminId     String?  @map("admin_id")
+  admin       Admin?   @relation(fields: [adminId], references: [id], onDelete: SetNull)
+  action      String   // create, update, delete, login, export, trigger_cron
+  module      String   // auth, customers, vehicles, policies, reminders, settings, reports
+  description String
+  ipAddress   String?  @map("ip_address")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("activity_logs")
+}
+
+model Settings {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  value     String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("settings")
+}

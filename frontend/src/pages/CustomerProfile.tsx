@@ -231,6 +231,18 @@ export const CustomerProfile: React.FC = () => {
                   policyNumber: allPolicies[0]?.policyNumber,
                 }}
               />
+              <button
+                onClick={() => {
+                  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=SHIELD_CRM_CUSTOMER_${customer.id}`;
+                  const win = window.open('', '_blank');
+                  if (win) {
+                    win.document.write(`<html><head><title>Customer QR Badge - ${customer.name}</title></head><body style="text-align:center;font-family:sans-serif;padding:40px;"><h2>${customer.name}</h2><p>Mobile: ${customer.mobile}</p><img src="${qrUrl}"/><br/><br/><button onclick="window.print()">Print QR Badge</button></body></html>`);
+                  }
+                }}
+                className="px-4 py-3 rounded-xl bg-brand-600/10 border border-brand-600/20 text-brand-400 font-bold text-xs hover:bg-brand-600/20 transition-all flex items-center gap-1.5"
+              >
+                📱 QR Badge
+              </button>
               <div className="px-4 py-3 rounded-xl bg-white/[0.03] border border-white/[0.06] text-center">
                 <p className="text-2xs text-text-subtle uppercase tracking-widest">Channel</p>
                 <p className="text-sm font-bold text-brand-400 capitalize mt-0.5 flex items-center gap-1">

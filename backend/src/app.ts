@@ -58,6 +58,20 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   next();
 });
 
+// Real-Time Event Sync SSE Endpoint
+import { syncService } from './services/sync.service';
+import { pushService } from './services/push.service';
+
+app.get('/api/sync/stream', (_req: Request, res: Response) => {
+  syncService.subscribeClient(res);
+});
+
+app.post('/api/notifications/push-token', (req: Request, res: Response) => {
+  const { token } = req.body;
+  if (token) pushService.registerToken(token);
+  res.json({ success: true, message: 'Push token registered successfully' });
+});
+
 // Register Router Modules
 app.use('/api/auth', authRoutes);
 app.use('/api/settings', settingsRoutes);

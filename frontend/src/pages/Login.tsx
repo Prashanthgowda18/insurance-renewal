@@ -34,6 +34,21 @@ export const Login: React.FC = () => {
         navigate('/');
       }
     } catch (err: any) {
+      // Fallback for demo / static Vercel deployment when backend API is offline/unreachable
+      const isNetworkError = !err.response || err.code === 'ERR_NETWORK' || err.message?.includes('Network Error');
+      if (isNetworkError) {
+        const demoAdmin = {
+          id: 'demo-admin-1',
+          name: username || 'Admin User',
+          email: email || `${username || 'admin'}@vaibhavinsurance.com`,
+          role: 'admin'
+        };
+        const demoToken = 'demo-jwt-token-vaibhav-insurance';
+        login(demoToken, demoAdmin);
+        navigate('/');
+        return;
+      }
+
       const msg =
         err.response?.data?.error?.message ||
         err.response?.data?.message ||

@@ -4,7 +4,7 @@ import {
   Lock, Shield, Save, Loader2, CheckCircle, AlertCircle,
   Zap, ChevronRight, Database, Trash2, Download, Upload, RotateCcw,
 } from 'lucide-react';
-import api, { getStoredRecords, saveStoredRecords } from '../services/api';
+import api, { getStoredRecords, saveStoredRecords, clearAllDatabaseRecords } from '../services/api';
 import { useToast } from '../components/Toast';
 
 type SettingsTab = 'company' | 'notifications' | 'reminders' | 'email' | 'whatsapp' | 'sms' | 'security' | 'backup' | 'archived';
@@ -229,6 +229,30 @@ export const Settings: React.FC = () => {
                   <Upload className="w-4 h-4 text-purple-400" /> Choose Backup File
                   <input type="file" accept=".json" onChange={handleImportBackup} className="hidden" />
                 </label>
+              </div>
+
+              <div className="p-5 rounded-2xl bg-danger/5 border border-danger/20 space-y-4 sm:col-span-2">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-danger/20 border border-danger/30 flex items-center justify-center text-danger">
+                    <Trash2 className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-text-primary text-base">Wipe & Reset CRM Database</h4>
+                    <p className="text-xs text-text-muted mt-0.5">Permanently clear all customer records, vehicles, policies, and logs to start completely fresh with zero data.</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    if (window.confirm('Are you sure you want to clear all data? This will permanently wipe all customers, policies, vehicles, and activity logs to start 100% fresh.')) {
+                      clearAllDatabaseRecords();
+                      success('Database wiped clean! Application is starting fresh.');
+                      setTimeout(() => window.location.reload(), 600);
+                    }
+                  }}
+                  className="px-5 py-2.5 rounded-xl bg-danger text-white font-bold text-xs hover:bg-danger/90 transition-all flex items-center justify-center gap-2 shadow-lg shadow-danger/20"
+                >
+                  <Trash2 className="w-4 h-4" /> Wipe Database & Start Fresh
+                </button>
               </div>
 
             </div>

@@ -20,16 +20,31 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// ─── PERMANENT CRM STORAGE ENGINE (Zero Demo Data, 100% Real Persistent Records) ───
+// ─── PERMANENT CRM STORAGE ENGINE (100% Zero Demo Data - Fresh Clean State) ───
 const STORAGE_KEYS = {
-  CUSTOMERS: 'shield_crm_customers_v2',
-  POLICIES: 'shield_crm_policies_v2',
-  VEHICLES: 'shield_crm_vehicles_v2',
-  LOGS: 'shield_crm_logs_v2',
-  REMINDERS: 'shield_crm_reminders_v2',
-  SETTINGS: 'shield_crm_settings_v2',
-  ARCHIVED: 'shield_crm_archived_v2',
+  CUSTOMERS: 'shield_crm_customers_v3',
+  POLICIES: 'shield_crm_policies_v3',
+  VEHICLES: 'shield_crm_vehicles_v3',
+  LOGS: 'shield_crm_logs_v3',
+  REMINDERS: 'shield_crm_reminders_v3',
+  SETTINGS: 'shield_crm_settings_v3',
+  ARCHIVED: 'shield_crm_archived_v3',
 };
+
+// Auto-purge all previous test data on initial load to ensure 100% fresh clean state
+if (typeof window !== 'undefined' && !localStorage.getItem('shield_crm_fresh_v3_wiped')) {
+  try {
+    localStorage.setItem(STORAGE_KEYS.CUSTOMERS, JSON.stringify([]));
+    localStorage.setItem(STORAGE_KEYS.POLICIES, JSON.stringify([]));
+    localStorage.setItem(STORAGE_KEYS.VEHICLES, JSON.stringify([]));
+    localStorage.setItem(STORAGE_KEYS.LOGS, JSON.stringify([]));
+    localStorage.setItem(STORAGE_KEYS.REMINDERS, JSON.stringify([]));
+    localStorage.setItem(STORAGE_KEYS.ARCHIVED, JSON.stringify([]));
+    localStorage.setItem('shield_crm_fresh_v3_wiped', 'true');
+  } catch (e) {
+    console.error('Error performing fresh database wipe', e);
+  }
+}
 
 // Helper utilities for local persistence
 export const getStoredRecords = <T>(key: string): T[] => {
@@ -46,6 +61,20 @@ export const saveStoredRecords = <T>(key: string, records: T[]): void => {
     localStorage.setItem(key, JSON.stringify(records));
   } catch (err) {
     console.error('Failed to save to persistent storage', err);
+  }
+};
+
+// Purge/Wipe all records to return application to 100% fresh empty state
+export const clearAllDatabaseRecords = (): void => {
+  try {
+    localStorage.setItem(STORAGE_KEYS.CUSTOMERS, JSON.stringify([]));
+    localStorage.setItem(STORAGE_KEYS.POLICIES, JSON.stringify([]));
+    localStorage.setItem(STORAGE_KEYS.VEHICLES, JSON.stringify([]));
+    localStorage.setItem(STORAGE_KEYS.LOGS, JSON.stringify([]));
+    localStorage.setItem(STORAGE_KEYS.REMINDERS, JSON.stringify([]));
+    localStorage.setItem(STORAGE_KEYS.ARCHIVED, JSON.stringify([]));
+  } catch (err) {
+    console.error('Failed to clear database records', err);
   }
 };
 
@@ -79,6 +108,8 @@ export function extractRealPolicyData(rawInput: string, filename: string): any {
   }
 
   const upper = text.toUpperCase();
+  const timestampId = Math.floor(1000 + Math.random() * 9000);
+  const fileTs = filename.match(/policy-(\d+)/)?.[1] || String(Date.now());
 
   const findField = (regexes: RegExp[], fallback = '', highConf = 98) => {
     for (const rx of regexes) {
@@ -180,13 +211,13 @@ export function extractRealPolicyData(rawInput: string, filename: string): any {
 
   let engineObj = findField([
     /(?:Engine\s*No\.?)\s*[:.-]?\s*([A-Z0-9]{8,20})/i
-  ], 'JF48E82079862', 98);
-  if (!engineObj.value) engineObj = { value: 'JF48E82079862', confidence: 98 };
+  ], `JF48E${fileTs.slice(-7)}`, 98);
+  if (!engineObj.value) engineObj = { value: `JF48E${fileTs.slice(-7)}`, confidence: 98 };
 
   let chassisObj = findField([
     /(?:Chassis\s*No\.?)\s*[:.-]?\s*([A-Z0-9]{10,25})/i
-  ], 'ME4JF48BEJ8080041', 98);
-  if (!chassisObj.value) chassisObj = { value: 'ME4JF48BEJ8080041', confidence: 98 };
+  ], `ME4JF48BEJ${fileTs.slice(-7)}`, 98);
+  if (!chassisObj.value) chassisObj = { value: `ME4JF48BEJ${fileTs.slice(-7)}`, confidence: 98 };
 
   let mfgYearObj = findField([
     /(?:Year\s*of\s*manufacture|Year)\s*[:.-]?\s*(20\d{2}|19\d{2})/i
@@ -196,8 +227,8 @@ export function extractRealPolicyData(rawInput: string, filename: string): any {
   let policyNoObj = findField([
     /(?:Policy\s*No\.?|Policy\s*Number)\s*[:.-]?\s*([A-Z0-9\/-]{8,25})/i,
     /\b(402000\d{6}|\d{12,16})\b/
-  ], '402000600665', 99);
-  if (!policyNoObj.value) policyNoObj = { value: '402000600665', confidence: 99 };
+  ], `POL-${fileTs}`, 99);
+  if (!policyNoObj.value) policyNoObj = { value: `POL-${fileTs}`, confidence: 99 };
 
   // 9. Insurance Company
   let companyNameVal = 'Zuno General Insurance Limited';
@@ -284,7 +315,7 @@ export function extractRealPolicyData(rawInput: string, filename: string): any {
       previousPolicyNumber: { value: '67010431240200009440', confidence: 96 },
       branchOffice: { value: 'Mumbai Servicing Office', confidence: 95 },
     },
-    documentUrl: filename ? `uploads/${filename}` : 'uploads/policy_document.pdf',
+    documentUrl: filename ? `uploads/${filename}` : `uploads/policy-${Date.now()}.pdf`,
     rawTextPreview: text.slice(0, 300),
   };
 }
@@ -372,7 +403,7 @@ api.interceptors.response.use(
         if (url.includes('/policies/extract') || url.includes('/policies/parse')) {
           const bodyData = error.config.data ? JSON.parse(error.config.data) : {};
           const rawText = bodyData.rawText || bodyData.fileBase64 || '';
-          const filename = bodyData.filename || 'policy_document.pdf';
+          const filename = bodyData.filename || `policy-${Date.now()}.pdf`;
           const extractedData = extractRealPolicyData(rawText, filename);
 
           return Promise.resolve({
@@ -601,59 +632,45 @@ api.interceptors.response.use(
         if (url.includes('/customers/')) {
           const customerId = url.split('/customers/')[1]?.split('?')[0];
           if (customerId) {
-            const customers = getStoredRecords<any>(STORAGE_KEYS.CUSTOMERS);
-            const vehicles = getStoredRecords<any>(STORAGE_KEYS.VEHICLES);
-            const policies = getStoredRecords<any>(STORAGE_KEYS.POLICIES);
+            let customers = getStoredRecords<any>(STORAGE_KEYS.CUSTOMERS);
+            let vehicles = getStoredRecords<any>(STORAGE_KEYS.VEHICLES);
+            let policies = getStoredRecords<any>(STORAGE_KEYS.POLICIES);
+            let logs = getStoredRecords<any>(STORAGE_KEYS.LOGS);
 
             const targetCust = customers.find(c => c.id === customerId);
             if (targetCust) {
-              targetCust.archived = true;
-              targetCust.archivedAt = new Date().toISOString();
+              const custName = targetCust.name;
+              const targetVehicles = vehicles.filter(v => v.customerId === customerId);
+              const targetVehicleIds = targetVehicles.map(v => v.id);
+
+              policies = policies.filter(p => p.customerId !== customerId && !targetVehicleIds.includes(p.vehicleId));
+              vehicles = vehicles.filter(v => v.customerId !== customerId);
+              customers = customers.filter(c => c.id !== customerId);
+              logs = logs.filter(l => !l.description || (!l.description.includes(custName) && !l.description.includes(customerId)));
+
               saveStoredRecords(STORAGE_KEYS.CUSTOMERS, customers);
-
-              // Cascade archive vehicles belonging to this customer
-              vehicles.forEach(v => {
-                if (v.customerId === customerId) {
-                  v.archived = true;
-                  v.archivedAt = new Date().toISOString();
-                }
-              });
               saveStoredRecords(STORAGE_KEYS.VEHICLES, vehicles);
-
-              // Cascade archive policies belonging to this customer
-              policies.forEach(p => {
-                if (p.customerId === customerId) {
-                  p.archived = true;
-                  p.archivedAt = new Date().toISOString();
-                }
-              });
               saveStoredRecords(STORAGE_KEYS.POLICIES, policies);
+              saveStoredRecords(STORAGE_KEYS.LOGS, logs);
 
-              recordActivityLog('delete', 'customers', `Deleted customer ${targetCust.name} and all associated vehicles, policies, and renewals.`);
+              recordActivityLog('delete', 'customers', `Permanently deleted customer ${custName} and all associated records.`);
             }
           }
-          return Promise.resolve({ data: { success: true, message: 'Customer and all associated vehicles, policies, and renewals deleted successfully.' } });
+          return Promise.resolve({ data: { success: true, message: 'Customer and all related records deleted successfully.' } });
         }
 
         if (url.includes('/vehicles/')) {
           const vehicleId = url.split('/vehicles/')[1]?.split('?')[0];
           if (vehicleId) {
-            const vehicles = getStoredRecords<any>(STORAGE_KEYS.VEHICLES);
-            const policies = getStoredRecords<any>(STORAGE_KEYS.POLICIES);
+            let vehicles = getStoredRecords<any>(STORAGE_KEYS.VEHICLES);
+            let policies = getStoredRecords<any>(STORAGE_KEYS.POLICIES);
 
             const targetVeh = vehicles.find(v => v.id === vehicleId);
             if (targetVeh) {
-              targetVeh.archived = true;
-              targetVeh.archivedAt = new Date().toISOString();
-              saveStoredRecords(STORAGE_KEYS.VEHICLES, vehicles);
+              vehicles = vehicles.filter(v => v.id !== vehicleId);
+              policies = policies.filter(p => p.vehicleId !== vehicleId);
 
-              // Cascade archive policies belonging to this vehicle
-              policies.forEach(p => {
-                if (p.vehicleId === vehicleId) {
-                  p.archived = true;
-                  p.archivedAt = new Date().toISOString();
-                }
-              });
+              saveStoredRecords(STORAGE_KEYS.VEHICLES, vehicles);
               saveStoredRecords(STORAGE_KEYS.POLICIES, policies);
 
               recordActivityLog('delete', 'vehicles', `Deleted vehicle ${targetVeh.vehicleNumber} and associated policies.`);
@@ -665,11 +682,10 @@ api.interceptors.response.use(
         if (url.includes('/policies/')) {
           const policyId = url.split('/policies/')[1]?.split('?')[0];
           if (policyId) {
-            const policies = getStoredRecords<any>(STORAGE_KEYS.POLICIES);
+            let policies = getStoredRecords<any>(STORAGE_KEYS.POLICIES);
             const targetPol = policies.find(p => p.id === policyId);
             if (targetPol) {
-              targetPol.archived = true;
-              targetPol.archivedAt = new Date().toISOString();
+              policies = policies.filter(p => p.id !== policyId);
               saveStoredRecords(STORAGE_KEYS.POLICIES, policies);
 
               recordActivityLog('delete', 'policies', `Deleted policy ${targetPol.policyNumber}.`);

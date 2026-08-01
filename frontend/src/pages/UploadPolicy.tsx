@@ -71,6 +71,7 @@ export const UploadPolicy: React.FC = () => {
   const navigate = useNavigate();
   const { success, error: toastError } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const lastPolicyNoRef = useRef<string | null>(null);
 
   const [file, setFile] = useState<File | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
@@ -147,6 +148,20 @@ export const UploadPolicy: React.FC = () => {
             toastError('Unable to extract information from this document.');
             return;
           }
+
+          const extractedPolicyNo = res.data.extractedData?.insurance?.policyNumber?.value;
+          if (
+            lastPolicyNoRef.current &&
+            extractedPolicyNo &&
+            lastPolicyNoRef.current === extractedPolicyNo &&
+            file && file.name !== docFile.name
+          ) {
+            setIsExtracting(false);
+            setExtractedData(null);
+            toastError('Incorrect extraction detected. Please reprocess the uploaded document.');
+            return;
+          }
+          lastPolicyNoRef.current = extractedPolicyNo;
 
           setTimeout(() => {
             setExtractedData(res.data.extractedData);

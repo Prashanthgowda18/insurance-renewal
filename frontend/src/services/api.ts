@@ -400,7 +400,15 @@ api.interceptors.response.use(
           let customer = customers.find(c => c.mobile && c.mobile === customerMobile);
           const custId = customer ? customer.id : `c_${Date.now()}`;
           
-          if (!customer) {
+          if (customer) {
+            customer.archived = false;
+            delete customer.archivedAt;
+            customer.name = customerName;
+            customer.mobile = customerMobile;
+            if (custData.email) customer.email = custData.email;
+            if (custData.address) customer.address = custData.address;
+            saveStoredRecords(STORAGE_KEYS.CUSTOMERS, customers);
+          } else {
             customer = {
               id: custId,
               name: customerName,
@@ -414,6 +422,7 @@ api.interceptors.response.use(
               preferredNotificationChannel: 'whatsapp',
               preferredLanguage: 'en',
               customerStatus: 'active',
+              archived: false,
               createdAt: new Date().toISOString(),
               vehicles: [],
             };
@@ -426,7 +435,14 @@ api.interceptors.response.use(
           let vehicle = vehicles.find(v => v.vehicleNumber === regNo);
           const vehId = vehicle ? vehicle.id : `v_${Date.now()}`;
 
-          if (!vehicle) {
+          if (vehicle) {
+            vehicle.archived = false;
+            delete vehicle.archivedAt;
+            vehicle.customerId = custId;
+            vehicle.customerName = customer.name;
+            vehicle.customerMobile = customer.mobile;
+            saveStoredRecords(STORAGE_KEYS.VEHICLES, vehicles);
+          } else {
             vehicle = {
               id: vehId,
               customerId: custId,
@@ -434,11 +450,12 @@ api.interceptors.response.use(
               customerMobile: customer.mobile,
               vehicleNumber: regNo,
               vehicleType: vehData.vehicleType || 'two_wheeler',
-              make: vehData.manufacturer || vehData.make || 'HONDA',
-              model: vehData.model || 'ACTIVA I',
+              make: vehData.manufacturer || vehData.make || 'Honda',
+              model: vehData.model || 'Activa I',
               manufacturingYear: vehData.manufacturingYear || 2018,
               fuelType: vehData.fuelType || 'petrol',
               customer: customer,
+              archived: false,
               policies: [],
             };
             vehicles.unshift(vehicle);

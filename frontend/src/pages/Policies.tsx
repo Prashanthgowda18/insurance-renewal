@@ -2,13 +2,14 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Shield, Search, Download, Filter, Loader2, RefreshCw, Plus,
-  Calendar, Building2, User, Car, ArrowUpDown,
+  Calendar, Building2, User, Car, ArrowUpDown, Eye,
 } from 'lucide-react';
 import api from '../services/api';
 import { StatusBadge, DaysBadge } from '../components/StatusBadge';
 import { EmptyState } from '../components/EmptyState';
 import { useToast } from '../components/Toast';
 import { WhatsAppButton } from '../components/WhatsAppButton';
+import { DocumentModal } from '../components/DocumentModal';
 
 interface Policy {
   id: string;
@@ -25,6 +26,7 @@ interface Policy {
   customerMobile?: string;
   customerId?: string;
   vehicleNumber?: string;
+  policyDocumentUrl?: string | null;
 }
 
 export const Policies: React.FC = () => {
@@ -36,6 +38,7 @@ export const Policies: React.FC = () => {
   const [filterRenewal, setFilterRenewal] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [sortBy, setSortBy] = useState<'expiry' | 'company' | 'days'>('expiry');
+  const [viewingDoc, setViewingDoc] = useState<any>(null);
 
   const fetchPolicies = async () => {
     setIsLoading(true);
@@ -212,18 +215,35 @@ export const Policies: React.FC = () => {
                     <td><StatusBadge status={p.status} size="sm" /></td>
                     <td><StatusBadge status={p.renewalStatus || 'pending'} size="sm" /></td>
                     <td className="text-right" onClick={e => e.stopPropagation()}>
-                      <WhatsAppButton
-                        variant="compact"
-                        data={{
-                          customerName: p.customerName || 'Customer',
-                          mobile: p.customerMobile || '',
-                          vehicleNumber: p.vehicleNumber,
-                          vehicleType: p.insuranceType,
-                          expiryDate: p.expiryDate,
-                          insuranceCompany: p.insuranceCompany,
-                          policyNumber: p.policyNumber,
-                        }}
-                      />
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => setViewingDoc({
+                            policyNumber: p.policyNumber,
+                            customerName: p.customerName,
+                            vehicleNumber: p.vehicleNumber,
+                            insuranceCompany: p.insuranceCompany,
+                            startDate: p.startDate,
+                            expiryDate: p.expiryDate,
+                            premiumAmount: p.renewalAmount,
+                            documentUrl: p.policyDocumentUrl
+                          })}
+                          className="px-2.5 py-1 rounded-lg bg-brand-600/15 border border-brand-600/30 text-brand-400 text-xs font-bold hover:bg-brand-600/25 transition-all flex items-center gap-1"
+                        >
+                          <Eye className="w-3 h-3" /> Document
+                        </button>
+                        <WhatsAppButton
+                          variant="compact"
+                          data={{
+                            customerName: p.customerName || 'Customer',
+                            mobile: p.customerMobile || '',
+                            vehicleNumber: p.vehicleNumber,
+                            vehicleType: p.insuranceType,
+                            expiryDate: p.expiryDate,
+                            insuranceCompany: p.insuranceCompany,
+                            policyNumber: p.policyNumber,
+                          }}
+                        />
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -238,6 +258,12 @@ export const Policies: React.FC = () => {
           </div>
         </div>
       )}
+
+      <DocumentModal
+        isOpen={!!viewingDoc}
+        onClose={() => setViewingDoc(null)}
+        documentData={viewingDoc}
+      />
     </div>
   );
 };

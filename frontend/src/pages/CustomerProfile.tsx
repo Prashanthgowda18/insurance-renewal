@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   User, ArrowLeft, Car, ShieldCheck, BellRing,
-  History, FileText, Clock, Loader2, AlertTriangle, Trash2,
+  History, FileText, Clock, Loader2, AlertTriangle, Trash2, Eye,
   Phone, Mail, MapPin, MessageSquare,
 } from 'lucide-react';
 import api from '../services/api';
@@ -10,6 +10,7 @@ import { RenewPolicyModal } from './RenewPolicyModal';
 import { StatusBadge, DaysBadge } from '../components/StatusBadge';
 import { WhatsAppButton } from '../components/WhatsAppButton';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { DocumentModal } from '../components/DocumentModal';
 import { useToast } from '../components/Toast';
 
 interface RenewalLog {
@@ -95,6 +96,7 @@ export const CustomerProfile: React.FC = () => {
   const [activeTab, setActiveTab] = useState('overview');
   const [isLoading, setIsLoading] = useState(false);
   const [renewPolicyId, setRenewPolicyId] = useState<string | null>(null);
+  const [viewingDoc, setViewingDoc] = useState<any>(null);
   const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const { success, error: toastError } = useToast();
@@ -495,13 +497,21 @@ export const CustomerProfile: React.FC = () => {
                     <p className="text-2xs text-text-subtle uppercase tracking-widest">{p.policyNumber}</p>
                     <p className="text-sm font-semibold text-text-primary mt-0.5">{p.insuranceCompany}</p>
                   </div>
-                  {p.policyDocumentUrl ? (
-                    <a href={`http://localhost:5000${p.policyDocumentUrl}`} target="_blank" rel="noopener noreferrer" className="btn-primary text-xs px-3 py-1.5">
-                      Open PDF
-                    </a>
-                  ) : (
-                    <span className="text-xs text-text-subtle">No document</span>
-                  )}
+                  <button
+                    onClick={() => setViewingDoc({
+                      policyNumber: p.policyNumber,
+                      customerName: customer.name,
+                      vehicleNumber: p.vehicleNumber,
+                      insuranceCompany: p.insuranceCompany,
+                      startDate: p.startDate,
+                      expiryDate: p.expiryDate,
+                      premiumAmount: p.renewalAmount,
+                      documentUrl: p.policyDocumentUrl
+                    })}
+                    className="btn-primary text-xs px-3.5 py-1.5 flex items-center gap-1.5 font-bold shadow-lg shadow-brand-500/20"
+                  >
+                    <Eye className="w-3.5 h-3.5" /> View PDF
+                  </button>
                 </div>
               ))}
             </div>
@@ -551,6 +561,12 @@ export const CustomerProfile: React.FC = () => {
         isLoading={isDeleting}
         onConfirm={handleDeleteCustomer}
         onCancel={() => setIsConfirmDeleteOpen(false)}
+      />
+
+      <DocumentModal
+        isOpen={!!viewingDoc}
+        onClose={() => setViewingDoc(null)}
+        documentData={viewingDoc}
       />
     </div>
   );

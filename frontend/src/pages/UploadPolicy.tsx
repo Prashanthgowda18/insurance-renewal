@@ -240,10 +240,19 @@ export const UploadPolicy: React.FC = () => {
       const res = await api.post('/policies/import-extracted', payload);
       setIsSaving(false);
       setSaveSuccessData(res.data);
-      success('Policy saved successfully and reminders generated!');
+      success('Customer and Insurance Policy saved successfully.');
+
+      const targetCustomerId = res.data?.customerId || res.data?.customer?.id;
+      setTimeout(() => {
+        if (targetCustomerId) {
+          navigate(`/customers/${targetCustomerId}`);
+        } else {
+          navigate('/customers');
+        }
+      }, 1000);
     } catch (err: any) {
       setIsSaving(false);
-      toastError(err.response?.data?.error?.message || 'Failed to save extracted policy.');
+      toastError(err.response?.data?.error?.message || err.message || 'Failed to save extracted policy.');
     }
   };
 

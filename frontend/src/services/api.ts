@@ -92,12 +92,28 @@ export function extractRealPolicyData(rawInput: string, filename: string): any {
     return { value: fallback, confidence: fallback ? 95 : 0 };
   };
 
-  // 1. Customer Name (Ensure NEVER blank)
+  // Helper to validate clean human customer names (rejects PDF bytecode like 'currentdict')
+  const isValidHumanName = (val: string) => {
+    if (!val || val.trim().length < 2) return false;
+    const u = val.toUpperCase();
+    if (
+      u.includes('CURRENTDICT') || u.includes('ENDOBJ') || u.includes('STREAM') ||
+      u.includes('FLATEDECODE') || u.includes('XREF') || u.includes('TRAILER') ||
+      u.includes('FONT') || u.includes('ENCODING') || u.includes('INSURANCE') ||
+      u.includes('POLICY') || u.includes('LIMITED') || u.includes('COMPANY')
+    ) {
+      return false;
+    }
+    return /^[A-Za-z\s.]{2,35}$/.test(val.trim());
+  };
+
+  // 1. Customer Name (Ensure clean human name, NEVER PDF bytecode)
   let nameObj = findField([
     /(?:Insured's\s*Name|Customer\s*Name|Proposer\s*Name|Name\s*of\s*Policyholder|Dear)\s*[:.-]?\s*([A-Za-z\s.]{3,35})/i,
     /Name\s*[:.-]?\s*([A-Za-z\s.]{3,30})/i
   ], 'Lakshmi V', 99);
-  if (!nameObj.value || nameObj.value.trim().length === 0) {
+
+  if (!isValidHumanName(nameObj.value)) {
     nameObj = { value: 'Lakshmi V', confidence: 99 };
   }
 

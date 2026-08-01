@@ -116,8 +116,15 @@ export const UploadPolicy: React.FC = () => {
     }, 250);
 
     try {
+      const now = new Date();
+      const dateTag = now.getFullYear().toString() +
+        (now.getMonth() + 1).toString().padStart(2, '0') +
+        now.getDate().toString().padStart(2, '0') + '_' +
+        now.getHours().toString().padStart(2, '0') +
+        now.getMinutes().toString().padStart(2, '0') +
+        now.getSeconds().toString().padStart(2, '0');
       const fileExt = docFile.name.split('.').pop() || 'pdf';
-      const uniqueFilename = `policy-${Math.floor(Date.now() / 1000)}-${Math.floor(1000 + Math.random() * 9000)}.${fileExt}`;
+      const uniqueFilename = `policy_${dateTag}_${Math.floor(1000 + Math.random() * 9000)}.${fileExt}`;
 
       const reader = new FileReader();
       reader.readAsDataURL(docFile);
@@ -133,6 +140,14 @@ export const UploadPolicy: React.FC = () => {
 
           clearInterval(progressInterval);
           setExtractionProgress(100);
+
+          if (!res.data || !res.data.extractedData) {
+            setIsExtracting(false);
+            setExtractedData(null);
+            toastError('Unable to extract information from this document.');
+            return;
+          }
+
           setTimeout(() => {
             setExtractedData(res.data.extractedData);
             setIsExtracting(false);
@@ -141,7 +156,8 @@ export const UploadPolicy: React.FC = () => {
         } catch (err: any) {
           clearInterval(progressInterval);
           setIsExtracting(false);
-          toastError(err.response?.data?.error?.message || 'Failed to extract document details.');
+          setExtractedData(null);
+          toastError(err.response?.data?.error?.message || 'Unable to extract information from this document.');
         }
       };
     } catch (err) {

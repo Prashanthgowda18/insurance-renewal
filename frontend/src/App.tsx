@@ -3,7 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider } from './components/Toast';
 import { Layout } from './components/Layout';
-import { Login } from './pages/Login';
+
 import { Dashboard } from './pages/Dashboard';
 import { Settings } from './pages/Settings';
 import { Customers } from './pages/Customers';
@@ -52,8 +52,6 @@ const AppRoutes: React.FC = () => {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Public */}
-        <Route path="/login" element={<Login />} />
 
         {/* Protected — all wrapped in shared Layout */}
         <Route path="/"                element={<WithLayout><Dashboard /></WithLayout>} />

@@ -26,40 +26,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     const bootstrap = async () => {
-      const storedToken = localStorage.getItem('token');
-      const storedAdmin = localStorage.getItem('admin');
-
-      if (storedToken && storedAdmin) {
-        setToken(storedToken);
-        try {
-          setAdmin(JSON.parse(storedAdmin));
-          setLoading(false);
-          return;
-        } catch {
-          localStorage.removeItem('token');
-          localStorage.removeItem('admin');
-        }
-      }
-
-      // Silent Auto-login in background on first load
-      try {
-        const response = await axios.post(
-          (import.meta.env.VITE_API_URL || (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? 'http://localhost:5000/api' : '/api')) + '/auth/login',
-          {
-            email: 'admin@example.com',
-            password: 'admin123',
-          }
-        );
-        const { token: fetchedToken, admin: fetchedAdmin } = response.data;
-        localStorage.setItem('token', fetchedToken);
-        localStorage.setItem('admin', JSON.stringify(fetchedAdmin));
-        setToken(fetchedToken);
-        setAdmin(fetchedAdmin);
-      } catch (err) {
-        console.error('Silent auto-login failed. Ensure Express server is active.', err);
-      } finally {
-        setLoading(false);
-      }
+      // Bypass authentication completely
+      const dummyAdmin = { id: 'admin', name: 'Admin User', email: 'admin@example.com', role: 'admin' };
+      setToken('dummy-token');
+      setAdmin(dummyAdmin);
+      setLoading(false);
     };
 
     bootstrap();

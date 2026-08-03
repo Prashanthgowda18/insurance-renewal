@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+﻿import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Users, Shield, AlertTriangle, XCircle,
@@ -10,11 +10,11 @@ import {
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import { StatusBadge, DaysBadge } from '../components/StatusBadge';
-
+import { AddCustomerModal } from './AddCustomerModal';
 import { useToast } from '../components/Toast';
 import { WhatsAppButton } from '../components/WhatsAppButton';
 
-// ─── Types ──────────────────────────────────────────────────────────────────
+// ΓöÇΓöÇΓöÇ Types ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
 interface KpiData {
   totalCustomers: number;
@@ -45,7 +45,7 @@ interface ActivityItem {
   module?: string;
 }
 
-// ─── Activity config ─────────────────────────────────────────────────────────
+// ΓöÇΓöÇΓöÇ Activity config ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
 const activityConfig: Record<string, { dot: string; icon: React.ReactNode; label: string }> = {
   customer_added:   { dot: 'bg-success',   icon: <UserPlus   className="w-3.5 h-3.5" />, label: 'Customer Added'   },
@@ -76,7 +76,7 @@ function formatRelativeTime(ts: string) {
   return `${days}d ago`;
 }
 
-// ─── Line Chart (Pure SVG) ────────────────────────────────────────────────────
+// ΓöÇΓöÇΓöÇ Line Chart (Pure SVG) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
 const LineChart: React.FC<{ data: number[]; labels: string[] }> = ({ data, labels }) => {
   const W = 420, H = 160, PAD_L = 30, PAD_B = 28, PAD_T = 16, PAD_R = 12;
@@ -168,7 +168,7 @@ const LineChart: React.FC<{ data: number[]; labels: string[] }> = ({ data, label
 
 const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
-// ─── KPI Card ─────────────────────────────────────────────────────────────────
+// ΓöÇΓöÇΓöÇ KPI Card ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
 interface KpiCardProps {
   label: string;
@@ -210,14 +210,14 @@ const KpiCard: React.FC<KpiCardProps> = ({ label, value, icon, iconBg, trend, tr
   </button>
 );
 
-// ─── Main Dashboard ───────────────────────────────────────────────────────────
+// ΓöÇΓöÇΓöÇ Main Dashboard ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
 export const Dashboard: React.FC = () => {
   const { admin } = useAuth();
   const navigate = useNavigate();
   const { success, error: toastError } = useToast();
 
-
+  const [isAddOpen, setIsAddOpen]   = useState(false);
   const [isLoading, setIsLoading]   = useState(false);
 
   const [kpi, setKpi]               = useState<KpiData>({ totalCustomers: 0, activePolicies: 0, expiringThisWeek: 0, expiredPolicies: 0 });
@@ -243,25 +243,25 @@ export const Dashboard: React.FC = () => {
       const customers: any[] = Array.isArray(custRes.data) ? custRes.data : (custRes.data?.customers || []);
       const logs: any[]      = Array.isArray(logsRes.data) ? logsRes.data : (logsRes.data?.logs || []);
 
-      // ── KPIs ──
+      // ΓöÇΓöÇ KPIs ΓöÇΓöÇ
       const active        = policies.filter(p => p.status === 'active').length;
       const expiringWeek  = policies.filter(p => p.daysRemaining >= 0 && p.daysRemaining <= 7).length;
       const expired       = policies.filter(p => p.daysRemaining < 0 || p.status === 'expired').length;
       setKpi({ totalCustomers: customers.length, activePolicies: active, expiringThisWeek: expiringWeek, expiredPolicies: expired });
 
-      // ── Upcoming (next 30 days) ──
+      // ΓöÇΓöÇ Upcoming (next 30 days) ΓöÇΓöÇ
       const up = policies
         .filter(p => p.daysRemaining >= 0 && p.daysRemaining <= 30)
         .sort((a, b) => a.daysRemaining - b.daysRemaining)
         .slice(0, 8)
         .map(p => ({
           id: p.id,
-          customerName:    p.customerName    || '—',
-          customerMobile:  p.customerMobile  || p.mobile || '—',
-          vehicleNumber:   p.vehicleNumber   || '—',
-          vehicleType:     p.vehicleType     || '—',
-          insuranceCompany:p.insuranceCompany|| '—',
-          policyNumber:    p.policyNumber    || '—',
+          customerName:    p.customerName    || 'ΓÇö',
+          customerMobile:  p.customerMobile  || p.mobile || 'ΓÇö',
+          vehicleNumber:   p.vehicleNumber   || 'ΓÇö',
+          vehicleType:     p.vehicleType     || 'ΓÇö',
+          insuranceCompany:p.insuranceCompany|| 'ΓÇö',
+          policyNumber:    p.policyNumber    || 'ΓÇö',
           expiryDate:      p.expiryDate,
           daysRemaining:   p.daysRemaining,
           renewalStatus:   p.renewalStatus   || 'pending',
@@ -269,7 +269,7 @@ export const Dashboard: React.FC = () => {
         }));
       setUpcoming(up);
 
-      // ── Monthly chart: count policies expiring per month in current year ──
+      // ΓöÇΓöÇ Monthly chart: count policies expiring per month in current year ΓöÇΓöÇ
       const year = new Date().getFullYear();
       const monthly = Array(12).fill(0);
       policies.forEach((p: any) => {
@@ -279,7 +279,7 @@ export const Dashboard: React.FC = () => {
       });
       setMonthlyData(monthly);
 
-      // ── Activity log ──
+      // ΓöÇΓöÇ Activity log ΓöÇΓöÇ
       const acts: ActivityItem[] = logs.slice(0, 10).map((l: any) => ({
         id:        l.id,
         type:      l.action || 'default',
@@ -319,7 +319,7 @@ export const Dashboard: React.FC = () => {
   return (
     <div className="p-6 lg:p-8 space-y-7 animate-fade-in">
 
-      {/* ── TOP HEADER ──────────────────────────────────────────────────── */}
+      {/* ΓöÇΓöÇ TOP HEADER ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <div className="flex items-center gap-2 mb-1">
@@ -328,18 +328,25 @@ export const Dashboard: React.FC = () => {
             </span>
           </div>
           <h1 className="text-2xl lg:text-[26px] font-bold text-text-primary tracking-tight leading-tight">
-            {greeting}, {admin?.name?.split(' ')[0] || 'Admin'} 👋
+            {greeting}, {admin?.name?.split(' ')[0] || 'Admin'} ≡ƒæï
           </h1>
           <p className="text-sm text-text-muted mt-0.5">{todayStr}</p>
         </div>
 
         <div className="flex items-center gap-3 self-start sm:self-auto">
           <button
-            onClick={() => navigate('/add-customer')}
+            onClick={() => navigate('/upload-policy')}
             className="btn-primary text-xs px-4 py-2 flex items-center gap-2 font-bold shadow-lg shadow-brand-500/20 bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500"
           >
-            <UserPlus className="w-4 h-4" />
-            Add Customer
+            <Sparkles className="w-4 h-4 text-amber-300" />
+            Upload Insurance Policy
+          </button>
+          <button
+            onClick={() => setIsAddOpen(true)}
+            className="btn-ghost border border-white/[0.08] text-xs px-3.5 py-2 flex items-center gap-1.5 font-medium"
+          >
+            <UserPlus className="w-3.5 h-3.5" />
+            Manual Add
           </button>
           <button
             onClick={fetchAll}
@@ -351,7 +358,7 @@ export const Dashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* ── INITIAL WELCOME EMPTY BANNER ── */}
+      {/* ΓöÇΓöÇ INITIAL WELCOME EMPTY BANNER ΓöÇΓöÇ */}
       {kpi.totalCustomers === 0 && (
         <div className="glass-card p-8 text-center border-brand-500/30 bg-gradient-to-b from-brand-600/10 to-transparent relative overflow-hidden animate-slide-up">
           <div className="w-16 h-16 rounded-2xl bg-brand-600/20 border border-brand-600/30 flex items-center justify-center mx-auto mb-4 text-brand-400">
@@ -363,16 +370,22 @@ export const Dashboard: React.FC = () => {
           </p>
           <div className="flex flex-wrap items-center justify-center gap-4 mt-6">
             <button
-              onClick={() => navigate('/add-customer')}
+              onClick={() => setIsAddOpen(true)}
               className="btn-primary text-sm px-5 py-2.5 flex items-center gap-2 font-bold shadow-lg shadow-brand-500/20"
             >
-              <UserPlus className="w-4 h-4" /> ➕ Add Customer
+              <UserPlus className="w-4 h-4" /> Γ₧ò Add Customer
+            </button>
+            <button
+              onClick={() => navigate('/upload-policy')}
+              className="btn-ghost border border-white/10 text-sm px-5 py-2.5 flex items-center gap-2 font-bold hover:bg-white/[0.05]"
+            >
+              <Sparkles className="w-4 h-4 text-amber-300" /> ≡ƒôä Upload Insurance Policy
             </button>
           </div>
         </div>
       )}
 
-      {/* ── ROW 1 · KPI CARDS ────────────────────────────────────────── */}
+      {/* ΓöÇΓöÇ ROW 1 ┬╖ KPI CARDS ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <KpiCard
           label="Total Customers"
@@ -390,15 +403,15 @@ export const Dashboard: React.FC = () => {
         />
       </div>
 
-      {/* ── ROW 2 · UPCOMING RENEWALS + LINE CHART ─────────────────────── */}
+      {/* ΓöÇΓöÇ ROW 2 ┬╖ UPCOMING RENEWALS + LINE CHART ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
 
-        {/* Upcoming Renewals Table — 3 cols */}
+        {/* Upcoming Renewals Table ΓÇö 3 cols */}
         <div className="glass-card overflow-hidden lg:col-span-3 flex flex-col">
           <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.05] flex-shrink-0">
             <div>
               <h2 className="text-sm font-bold text-text-primary">Upcoming Renewals</h2>
-              <p className="text-xs text-text-subtle mt-0.5">Next 30 days · {upcoming.length} policies</p>
+              <p className="text-xs text-text-subtle mt-0.5">Next 30 days ┬╖ {upcoming.length} policies</p>
             </div>
             <button
               onClick={() => navigate('/policies')}
@@ -483,11 +496,11 @@ export const Dashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Monthly Renewals Line Chart — 2 cols */}
+        {/* Monthly Renewals Line Chart ΓÇö 2 cols */}
         <div className="glass-card p-5 lg:col-span-2 flex flex-col">
           <div className="mb-4 flex-shrink-0">
             <h2 className="text-sm font-bold text-text-primary">Monthly Renewals</h2>
-            <p className="text-xs text-text-subtle mt-0.5">Policies expiring per month · {new Date().getFullYear()}</p>
+            <p className="text-xs text-text-subtle mt-0.5">Policies expiring per month ┬╖ {new Date().getFullYear()}</p>
           </div>
 
           {/* Total for year badge */}
@@ -510,13 +523,19 @@ export const Dashboard: React.FC = () => {
             <div className="flex items-center justify-between text-xs">
               <span className="text-text-subtle">Peak month</span>
               <span className="font-semibold text-text-primary">
-                {MONTHS_SHORT[monthlyData.indexOf(Math.max(...monthlyData))]} · {Math.max(...monthlyData)} policies
+                {MONTHS_SHORT[monthlyData.indexOf(Math.max(...monthlyData))]} ┬╖ {Math.max(...monthlyData)} policies
               </span>
             </div>
           </div>
         </div>
       </div>
 
+      {/* Add Customer Wizard */}
+      <AddCustomerModal
+        isOpen={isAddOpen}
+        onClose={() => setIsAddOpen(false)}
+        onSuccess={() => { setIsAddOpen(false); fetchAll(); success('Customer added successfully!'); }}
+      />
     </div>
   );
 };

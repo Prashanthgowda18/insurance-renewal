@@ -32,14 +32,6 @@ export const DashboardScreen: React.FC<Props> = ({ theme, onNavigate }) => {
           <h1 style={{ fontSize: '22px', fontWeight: 'bold', margin: 0 }}>Shield CRM Mobile</h1>
           <p style={{ fontSize: '13px', color: colors.textMuted, margin: '2px 0 0 0' }}>Field Agent Workspace</p>
         </div>
-        <div style={{ display: 'flex', gap: '8px' }}>
-          <button 
-            onClick={() => onNavigate('qr_scanner')}
-            style={{ backgroundColor: colors.primary + '20', color: colors.primary, border: 'none', padding: '8px 12px', borderRadius: '10px', fontWeight: 'bold', fontSize: '12px' }}
-          >
-            📷 Scan QR
-          </button>
-        </div>
       </div>
 
       {/* Expiry Cards Row */}

@@ -5,7 +5,7 @@ import {
   Loader2, Filter, LayoutGrid, List, Phone, Mail, Car, Shield,
 } from 'lucide-react';
 import api from '../services/api';
-import { AddCustomerModal } from './AddCustomerModal';
+
 import { StatusBadge } from '../components/StatusBadge';
 import { EmptyState } from '../components/EmptyState';
 import { ConfirmDialog } from '../components/ConfirmDialog';
@@ -55,7 +55,7 @@ export const Customers: React.FC = () => {
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [isAddOpen, setIsAddOpen] = useState(false);
+
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('table');
@@ -115,7 +115,7 @@ export const Customers: React.FC = () => {
           <button onClick={exportCSV} className="btn-secondary text-xs px-4 py-2">
             <Download className="w-3.5 h-3.5" /> Export
           </button>
-          <button onClick={() => setIsAddOpen(true)} className="btn-primary text-xs px-4 py-2">
+          <button onClick={() => navigate('/add-customer')} className="btn-primary text-xs px-4 py-2">
             <Plus className="w-3.5 h-3.5" /> Add Customer
           </button>
         </div>
@@ -176,7 +176,7 @@ export const Customers: React.FC = () => {
             icon={<Users className="w-8 h-8" />}
             title="No data found."
             description={search ? 'No customer records match your search query.' : 'No customer records available. Start by adding your first customer or uploading an insurance policy.'}
-            action={{ label: 'Add First Customer', onClick: () => setIsAddOpen(true), icon: <Plus className="w-4 h-4" /> }}
+            action={{ label: 'Add First Customer', onClick: () => navigate('/add-customer'), icon: <Plus className="w-4 h-4" /> }}
           />
         </div>
       ) : viewMode === 'table' ? (
@@ -338,7 +338,7 @@ export const Customers: React.FC = () => {
         onConfirm={handleDelete}
         onCancel={() => setDeleteId(null)}
       />
-      <AddCustomerModal isOpen={isAddOpen} onClose={() => setIsAddOpen(false)} onSuccess={fetchCustomers} />
+
     </div>
   );
 };

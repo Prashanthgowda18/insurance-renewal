@@ -10,7 +10,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import { StatusBadge, DaysBadge } from '../components/StatusBadge';
-import { AddCustomerModal } from './AddCustomerModal';
+
 import { useToast } from '../components/Toast';
 import { WhatsAppButton } from '../components/WhatsAppButton';
 
@@ -217,7 +217,7 @@ export const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const { success, error: toastError } = useToast();
 
-  const [isAddOpen, setIsAddOpen]   = useState(false);
+
   const [isLoading, setIsLoading]   = useState(false);
 
   const [kpi, setKpi]               = useState<KpiData>({ totalCustomers: 0, activePolicies: 0, expiringThisWeek: 0, expiredPolicies: 0 });
@@ -335,18 +335,11 @@ export const Dashboard: React.FC = () => {
 
         <div className="flex items-center gap-3 self-start sm:self-auto">
           <button
-            onClick={() => navigate('/upload-policy')}
+            onClick={() => navigate('/add-customer')}
             className="btn-primary text-xs px-4 py-2 flex items-center gap-2 font-bold shadow-lg shadow-brand-500/20 bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500"
           >
-            <Sparkles className="w-4 h-4 text-amber-300" />
-            Upload Insurance Policy
-          </button>
-          <button
-            onClick={() => setIsAddOpen(true)}
-            className="btn-ghost border border-white/[0.08] text-xs px-3.5 py-2 flex items-center gap-1.5 font-medium"
-          >
-            <UserPlus className="w-3.5 h-3.5" />
-            Manual Add
+            <UserPlus className="w-4 h-4" />
+            Add Customer
           </button>
           <button
             onClick={fetchAll}
@@ -370,16 +363,204 @@ export const Dashboard: React.FC = () => {
           </p>
           <div className="flex flex-wrap items-center justify-center gap-4 mt-6">
             <button
-              onClick={() => setIsAddOpen(true)}
+              onClick={() => navigate('/add-customer')}
               className="btn-primary text-sm px-5 py-2.5 flex items-center gap-2 font-bold shadow-lg shadow-brand-500/20"
             >
               <UserPlus className="w-4 h-4" /> ➕ Add Customer
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── ROW 1 · KPI CARDS ────────────────────────────────────────── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <KpiCard
+          label="Total Customers"
+          value={kpi.totalCustomers}
+          icon={<Users className="w-5 h-5 text-brand-400" />}
+          iconBg="bg-brand-600/15 border border-brand-600/20"
+          onClick={() => navigate('/customers')}
+        />
+        <KpiCard
+          label="Expired Policies"
+          value={kpi.expiredPolicies}
+          icon={<XCircle className="w-5 h-5 text-danger" />}
+          iconBg="bg-danger/10 border border-danger/20"
+          onClick={() => navigate('/policies')}
+        />
+      </div>
+
+      {/* ── ROW 2 · UPCOMING RENEWALS + LINE CHART ─────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
+
+        {/* Upcoming Renewals Table — 3 cols */}
+        <div className="glass-card overflow-hidden lg:col-span-3 flex flex-col">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.05] flex-shrink-0">
+            <div>
+              <h2 className="text-sm font-bold text-text-primary">Upcoming Renewals</h2>
+              <p className="text-xs text-text-subtle mt-0.5">Next 30 days · {upcoming.length} policies</p>
+            </div>
             <button
-              onClick={() => navigate('/upload-policy')}
-              className="btn-ghost border border-white/10 text-sm px-5 py-2.5 flex items-center gap-2 font-bold hover:bg-white/[0.05]"
+              onClick={() => navigate('/policies')}
+              className="flex items-center gap-1 text-xs text-brand-400 hover:text-brand-300 transition-colors"
             >
-              <Sparkles className="w-4 h-4 text-amber-300" /> 📄 Upload Insurance Policy
+              View all <ArrowRight className="w-3 h-3" />
+            </button>
+          </div>
+
+          <div className="overflow-auto flex-1">
+            {upcoming.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-14 text-text-subtle">
+                <CheckCircle className="w-9 h-9 mb-2.5 text-success/30" />
+                <p className="text-sm font-medium text-text-muted">All clear!</p>
+                <p className="text-xs mt-1">No policies expiring in the next 30 days.</p>
+              </div>
+            ) : (
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 z-10">
+                  <tr className="bg-[#111827] border-b border-white/[0.05]">
+                    {['Customer','Vehicle','Type','Company','Expiry','Days',''].map(h => (
+                      <th key={h} className="px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-widest text-text-subtle whitespace-nowrap">
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {upcoming.map((p, i) => (
+                    <tr
+                      key={p.id}
+                      className={`border-b border-white/[0.03] hover:bg-white/[0.03] transition-colors group ${p.daysRemaining <= 3 ? 'bg-danger/[0.02]' : ''}`}
+                      style={{ animationDelay: `${i * 0.04}s` }}
+                    >
+                      <td className="px-4 py-3">
+                        <p className="font-semibold text-text-primary text-xs truncate max-w-[110px]">{p.customerName}</p>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="font-mono text-xs text-text-muted">{p.vehicleNumber}</span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="text-xs text-text-subtle capitalize">{vehicleTypeLabel(p.vehicleType)}</span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="text-xs text-text-muted truncate max-w-[100px] block">{p.insuranceCompany}</span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="text-xs text-text-muted whitespace-nowrap">
+                          {new Date(p.expiryDate).toLocaleDateString('en-GB', { day:'2-digit', month:'short' })}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <DaysBadge days={p.daysRemaining} />
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex items-center justify-end gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <WhatsAppButton
+                            variant="compact"
+                            data={{
+                              customerName: p.customerName,
+                              mobile: p.customerMobile,
+                              vehicleType: p.vehicleType,
+                              vehicleNumber: p.vehicleNumber,
+                              expiryDate: p.expiryDate,
+                              insuranceCompany: p.insuranceCompany,
+                              policyNumber: p.policyNumber,
+                            }}
+                          />
+                          <button
+                            onClick={() => p.customerId && navigate(`/customers/${p.customerId}`)}
+                            className="px-2.5 py-1.5 text-[10px] font-semibold rounded-xl bg-brand-600/15 text-brand-400 hover:bg-brand-600/25 border border-brand-600/20 whitespace-nowrap"
+                          >
+                            Renew
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+
+        {/* Monthly Renewals Line Chart — 2 cols */}
+        <div className="glass-card p-5 lg:col-span-2 flex flex-col">
+          <div className="mb-4 flex-shrink-0">
+            <h2 className="text-sm font-bold text-text-primary">Monthly Renewals</h2>
+            <p className="text-xs text-text-subtle mt-0.5">Policies expiring per month · {new Date().getFullYear()}</p>
+          </div>
+
+          {/* Total for year badge */}
+          <div className="flex items-center gap-3 mb-5 flex-shrink-0">
+            <div className="text-2xl font-bold text-text-primary tabular-nums">
+              {monthlyData.reduce((a, b) => a + b, 0)}
+            </div>
+            <div>
+              <p className="text-xs text-text-subtle">Total expirations</p>
+              <p className="text-[10px] text-brand-400 font-medium">this year</p>
+            </div>
+          </div>
+
+          <div className="flex-1 min-h-[140px]">
+            <LineChart data={monthlyData} labels={MONTHS_SHORT} />
+          </div>
+
+          {/* Peak month */}
+          <div className="mt-4 pt-4 border-t border-white/[0.05] flex-shrink-0">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-text-subtle">Peak month</span>
+              <span className="font-semibold text-text-primary">
+                {MONTHS_SHORT[monthlyData.indexOf(Math.max(...monthlyData))]} · {Math.max(...monthlyData)} policies
+              </span>
+            </div>
+      {/* ── TOP HEADER ──────────────────────────────────────────────────── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-2xs uppercase tracking-widest font-bold text-brand-400 bg-brand-600/10 border border-brand-600/20 px-2.5 py-0.5 rounded-full">
+              Dashboard
+            </span>
+          </div>
+          <h1 className="text-2xl lg:text-[26px] font-bold text-text-primary tracking-tight leading-tight">
+            {greeting}, {admin?.name?.split(' ')[0] || 'Admin'} 👋
+          </h1>
+          <p className="text-sm text-text-muted mt-0.5">{todayStr}</p>
+        </div>
+
+        <div className="flex items-center gap-3 self-start sm:self-auto">
+          <button
+            onClick={() => navigate('/add-customer')}
+            className="btn-primary text-xs px-4 py-2 flex items-center gap-2 font-bold shadow-lg shadow-brand-500/20 bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500"
+          >
+            <UserPlus className="w-4 h-4" />
+            Add Customer
+          </button>
+          <button
+            onClick={fetchAll}
+            disabled={isLoading}
+            className="btn-ghost border border-white/[0.06] px-3 py-2 text-xs"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+          </button>
+        </div>
+      </div>
+
+      {/* ── INITIAL WELCOME EMPTY BANNER ── */}
+      {kpi.totalCustomers === 0 && (
+        <div className="glass-card p-8 text-center border-brand-500/30 bg-gradient-to-b from-brand-600/10 to-transparent relative overflow-hidden animate-slide-up">
+          <div className="w-16 h-16 rounded-2xl bg-brand-600/20 border border-brand-600/30 flex items-center justify-center mx-auto mb-4 text-brand-400">
+            <Zap className="w-8 h-8" />
+          </div>
+          <h2 className="text-2xl font-bold text-text-primary">Welcome to Shield Insurance CRM</h2>
+          <p className="text-text-muted max-w-md mx-auto mt-2 text-sm">
+            Start by adding your first customer or uploading an insurance policy.
+          </p>
+          <div className="flex flex-wrap items-center justify-center gap-4 mt-6">
+            <button
+              onClick={() => navigate('/add-customer')}
+              className="btn-primary text-sm px-5 py-2.5 flex items-center gap-2 font-bold shadow-lg shadow-brand-500/20"
+            >
+              <UserPlus className="w-4 h-4" /> ➕ Add Customer
             </button>
           </div>
         </div>
@@ -530,12 +711,7 @@ export const Dashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Add Customer Wizard */}
-      <AddCustomerModal
-        isOpen={isAddOpen}
-        onClose={() => setIsAddOpen(false)}
-        onSuccess={() => { setIsAddOpen(false); fetchAll(); success('Customer added successfully!'); }}
-      />
+      {/* Modals */}
     </div>
   );
 };

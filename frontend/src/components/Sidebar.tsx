@@ -16,6 +16,7 @@ import {
   ChevronRight,
   Zap,
   Sparkles,
+  UserPlus,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -39,7 +40,7 @@ const navSections: NavSection[] = [
   {
     items: [
       { icon: <LayoutDashboard className="w-[18px] h-[18px]" />, label: 'Dashboard',         path: '/'              },
-      { icon: <Sparkles        className="w-[18px] h-[18px] text-brand-400" />, label: 'Upload Policy', path: '/upload-policy' },
+      { icon: <UserPlus        className="w-[18px] h-[18px] text-brand-400" />, label: 'Add Customer', path: '/add-customer' },
     ],
   },
   {
@@ -54,7 +55,6 @@ const navSections: NavSection[] = [
     items: [
       { icon: <RefreshCw    className="w-[18px] h-[18px]" />, label: 'Renewals',          path: '/renewals'        },
       { icon: <CalendarDays className="w-[18px] h-[18px]" />, label: 'Reminder Calendar', path: '/calendar'        },
-      { icon: <Bell         className="w-[18px] h-[18px]" />, label: 'Reminder History',  path: '/reminder-history' },
       { icon: <BarChart3    className="w-[18px] h-[18px]" />, label: 'Reports',           path: '/reports'         },
     ],
   },

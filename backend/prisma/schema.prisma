@@ -16,12 +16,28 @@ model Admin {
   createdAt    DateTime      @default(now()) @map("created_at")
   updatedAt    DateTime      @updatedAt @map("updated_at")
   activityLogs ActivityLog[]
+  agencyId     String?       @map("agency_id")
+  agency       Agency?       @relation("AgencyAdmins", fields: [agencyId], references: [id])
 
   @@map("admins")
 }
 
+model Agency {
+  id          String    @id @default(uuid())
+  name        String
+  domain      String    @unique
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  customers   Customer[]
+  documentExtractions DocumentExtraction[] @relation("AgencyDocumentExtractions")
+  admins Admin[] @relation("AgencyAdmins")
+  @@map("agencies")
+}
+
 model Customer {
   id                           String     @id @default(uuid())
+  agencyId                     String?    @map("agency_id")
+  agency                       Agency?    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
   name                         String
   mobile                       String     @unique
   altMobile                    String?    @map("alt_mobile")
@@ -148,3 +164,24 @@ model Settings {
 
   @@map("settings")
 }
+
+model SentryConfig {
+  id        String   @id @default(uuid())
+  dsn       String
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("sentry_config")
+}
+
+model DocumentExtraction {
+  id            String   @id @default(uuid())
+  pdfUrl        String
+  createdAt     DateTime @default(now())
+  agencyId      String?
+  Agency        Agency?  @relation(name: "AgencyDocumentExtractions", fields: [agencyId], references: [id])
+
+  @@map("document_extractions")
+}
+

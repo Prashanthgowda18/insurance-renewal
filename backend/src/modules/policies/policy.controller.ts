@@ -2,9 +2,11 @@ import { Response } from 'express';
 import { z } from 'zod';
 import { prisma } from '../../utils/db';
 import { logActivity } from '../logs/audit.service';
-import { errorLogger, notificationLogger } from '../../utils/logger';
+import { errorLogger, notificationLogger, systemLogger } from '../../utils/logger';
 import { AuthenticatedRequest } from '../../middleware/auth.middleware';
 import { getNotificationProvider } from '../../services/notification.service';
+import { saveBase64File } from '../../utils/upload';
+import { parsePolicyDocument } from '../../services/policyExtractor.service';
 
 export const listPolicies = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
@@ -448,34 +450,36 @@ Thank you.`;
 
 export const extractPolicy = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
+    systemLogger.info('[Workflow] Upload Started');
     const { fileBase64, filename } = req.body;
     if (!fileBase64) {
-      res.status(400).json({ error: { message: 'Document file (fileBase64) is required.' } });
+      res.status(400).json({ success: false, error: { message: 'Document file (fileBase64) is required.' } });
       return;
     }
 
-    const { saveBase64File } = await import('../../utils/upload');
-    const { parsePolicyDocument } = await import('../../services/policyExtractor.service');
-
     const allowedMimeTypes = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg'];
     const savedFile = await saveBase64File(fileBase64, 'policies', allowedMimeTypes);
+    systemLogger.info('[Workflow] Upload Completed');
 
     // Extract buffer from base64 string
     const base64Data = fileBase64.replace(/^data:[a-zA-Z0-9-+\/]+;base64,/, '');
     const buffer = Buffer.from(base64Data, 'base64');
     const mimeType = fileBase64.match(/^data:([a-zA-Z0-9-+\/]+);base64,/)?.[1] || 'application/pdf';
 
+    systemLogger.info('[Workflow] AI Request Sent');
     const extractedData = await parsePolicyDocument(buffer, mimeType, filename || savedFile.filename);
-    extractedData.documentUrl = savedFile.url;
+    systemLogger.info('[Workflow] AI Response Received');
+    systemLogger.info('[Workflow] JSON Parsed');
 
     res.status(200).json({
+      success: true,
       message: 'Policy document extracted successfully',
       extractedData,
       documentUrl: savedFile.url,
     });
   } catch (error: any) {
     errorLogger.error('Extract policy controller failed', error);
-    res.status(400).json({ error: { message: error.message || 'Failed to extract policy document' } });
+    res.status(400).json({ success: false, error: { message: error.message || 'Failed to extract policy document' } });
   }
 };
 
@@ -484,37 +488,63 @@ export const importExtractedPolicy = async (req: AuthenticatedRequest, res: Resp
     const data = req.body;
 
     const custMobile = data.customer?.mobile?.replace(/\D/g, '').slice(-10);
-    if (!custMobile || !/^[6-9]\d{9}$/.test(custMobile)) {
-      res.status(400).json({ error: { message: 'Valid 10-digit customer mobile number starting with 6-9 is required.' } });
+    if (!custMobile || !/^\d{10}$/.test(custMobile)) {
+      res.status(400).json({ success: false, error: { message: 'Valid 10-digit customer mobile number is required.' } });
       return;
     }
 
     const vNum = data.vehicle?.registrationNumber?.toUpperCase();
     if (!vNum) {
-      res.status(400).json({ error: { message: 'Vehicle registration number is required.' } });
+      res.status(400).json({ success: false, error: { message: 'Vehicle registration number is required.' } });
       return;
     }
 
     const pNum = data.insurance?.policyNumber?.toUpperCase();
     if (!pNum) {
-      res.status(400).json({ error: { message: 'Policy number is required.' } });
+      res.status(400).json({ success: false, error: { message: 'Policy number is required.' } });
       return;
     }
 
+    systemLogger.info(`[Database Save] Starting database save transaction for Customer: '${data.customer?.name}', Vehicle: '${vNum}', Policy: '${pNum}'`);
+
+    let docUrl = data.documentUrl || null;
+    const base64Doc = data.policyDocumentBase64 || data.insurance?.policyDocumentBase64;
+    if (base64Doc) {
+      try {
+        const savedFile = await saveBase64File(base64Doc, 'policies', ['application/pdf', 'image/png', 'image/jpeg']);
+        docUrl = savedFile.url;
+        systemLogger.info(`[Workflow] PDF Policy file uploaded and saved to: '${docUrl}'`);
+      } catch (uploadErr) {
+        systemLogger.warn(`[Base64 Upload Warning] Failed to save manual PDF document: ${uploadErr}`);
+      }
+    }
+
     const result = await prisma.$transaction(async (tx) => {
-      // 1. Find or Create Customer
+      // 1. Find or Create/Update Customer
       let customer = await tx.customer.findUnique({ where: { mobile: custMobile } });
-      if (!customer) {
+      if (customer) {
+        customer = await tx.customer.update({
+          where: { id: customer.id },
+          data: {
+            name: data.customer?.name || customer.name,
+            email: data.customer?.email || customer.email,
+            address: data.customer?.address || customer.address,
+            customerStatus: 'active',
+          },
+        });
+      } else {
         customer = await tx.customer.create({
           data: {
-            name: data.customer.name || 'Customer',
+            agencyId: req.admin?.agencyId || null,
+            name: data.customer?.name || 'Customer',
             mobile: custMobile,
-            email: data.customer.email || null,
-            address: data.customer.address ? `${data.customer.address}, ${data.customer.city || ''} ${data.customer.state || ''} ${data.customer.pincode || ''}`.trim() : null,
+            email: data.customer?.email || null,
+            address: data.customer?.address || null,
             customerStatus: 'active',
           },
         });
       }
+      systemLogger.info(`[Workflow] Customer Saved: ID=${customer.id}`);
 
       // 2. Find or Create Vehicle
       let vehicle = await tx.vehicle.findUnique({ where: { vehicleNumber: vNum } });
@@ -531,33 +561,49 @@ export const importExtractedPolicy = async (req: AuthenticatedRequest, res: Resp
           },
         });
       }
+      systemLogger.info(`[Workflow] Vehicle Saved: ID=${vehicle.id}`);
 
-      // 3. Check existing policy
-      const existingPol = await tx.insurancePolicy.findUnique({ where: { policyNumber: pNum } });
-      if (existingPol) {
-        throw new Error(`Policy number '${pNum}' is already registered in the system.`);
-      }
+      // 3. Find or Create/Update Insurance Policy
+      let policy = await tx.insurancePolicy.findUnique({ where: { policyNumber: pNum } });
 
-      // 4. Create Insurance Policy
       const startDate = new Date(data.insurance.startDate || new Date());
       const expiryDate = new Date(data.insurance.expiryDate || new Date(Date.now() + 365 * 24 * 3600 * 1000));
 
-      const policy = await tx.insurancePolicy.create({
-        data: {
-          vehicleId: vehicle.id,
-          insuranceCompany: data.insurance.companyName || 'Insurance Provider',
-          policyNumber: pNum,
-          insuranceType: data.insurance.policyType || 'comprehensive',
-          startDate,
-          expiryDate,
-          status: expiryDate > new Date() ? 'active' : 'expired',
-          renewalStatus: 'pending',
-          policyDocumentUrl: data.documentUrl || null,
-          renewalAmount: Number(data.insurance.premiumAmount) || 0,
-        },
-      });
+      if (policy) {
+        policy = await tx.insurancePolicy.update({
+          where: { id: policy.id },
+          data: {
+            vehicleId: vehicle.id,
+            insuranceCompany: data.insurance.companyName || policy.insuranceCompany,
+            insuranceType: data.insurance.policyType || policy.insuranceType,
+            startDate,
+            expiryDate,
+            status: expiryDate > new Date() ? 'active' : 'expired',
+            policyDocumentUrl: docUrl || policy.policyDocumentUrl,
+            renewalAmount: Number(data.insurance.premiumAmount) || policy.renewalAmount,
+          },
+        });
+      } else {
+        policy = await tx.insurancePolicy.create({
+          data: {
+            vehicleId: vehicle.id,
+            insuranceCompany: data.insurance.companyName || 'Insurance Provider',
+            policyNumber: pNum,
+            insuranceType: data.insurance.policyType || 'comprehensive',
+            startDate,
+            expiryDate,
+            status: expiryDate > new Date() ? 'active' : 'expired',
+            renewalStatus: 'pending',
+            policyDocumentUrl: docUrl || null,
+            renewalAmount: Number(data.insurance.premiumAmount) || 0,
+          },
+        });
+      }
+      systemLogger.info(`[Workflow] Policy Saved: ID=${policy.id}`);
 
-      // 5. Generate 6-stage Reminder Schedule (30d, 15d, 7d, 3d, 1d, 0d)
+      // 4. Generate/refresh 6-stage Reminder Schedule (30d, 15d, 7d, 3d, 1d, 0d)
+      await tx.reminderSchedule.deleteMany({ where: { policyId: policy.id } });
+
       const stages = [
         { type: '30d', days: 30 },
         { type: '15d', days: 15 },
@@ -583,6 +629,8 @@ export const importExtractedPolicy = async (req: AuthenticatedRequest, res: Resp
       return { customer, vehicle, policy };
     });
 
+    systemLogger.info(`[Database Save] Saved Customer (ID: ${result.customer.id}), Vehicle (ID: ${result.vehicle.id}), Policy (ID: ${result.policy.id}), and 6 reminder schedules.`);
+
     if (req.admin) {
       await logActivity(
         req.admin.id,
@@ -594,11 +642,14 @@ export const importExtractedPolicy = async (req: AuthenticatedRequest, res: Resp
     }
 
     res.status(201).json({
+      success: true,
       message: 'Insurance policy imported and saved successfully',
-      ...result,
+      customer: result.customer,
+      vehicle: result.vehicle,
+      policy: result.policy,
     });
   } catch (error: any) {
     errorLogger.error('Import extracted policy failed', error);
-    res.status(400).json({ error: { message: error.message || 'Failed to import extracted policy.' } });
+    res.status(400).json({ success: false, error: { message: error.message || 'Failed to import extracted policy.' } });
   }
 };

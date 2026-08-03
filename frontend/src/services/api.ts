@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000/api',
+  baseURL: import.meta.env.VITE_API_URL || (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? 'http://localhost:5000/api' : '/api'),
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
@@ -484,8 +484,8 @@ api.interceptors.response.use(
           const policies = getStoredRecords<any>(STORAGE_KEYS.POLICIES);
 
           // 1. Create or update customer
-          let customerName = custData.name && custData.name.trim().length > 0 ? custData.name.trim() : 'Lakshmi V';
-          let customerMobile = custData.mobile && custData.mobile.trim().length > 0 ? custData.mobile.trim() : '9632537834';
+          let customerName = custData.name && custData.name.trim().length > 0 ? custData.name.trim() : 'Customer';
+          let customerMobile = custData.mobile && custData.mobile.trim().length > 0 ? custData.mobile.trim() : '9876543210';
 
           let customer = customers.find(c => c.mobile && c.mobile === customerMobile);
           const custId = customer ? customer.id : `c_${Date.now()}`;
@@ -495,8 +495,8 @@ api.interceptors.response.use(
             delete customer.archivedAt;
             customer.name = customerName;
             customer.mobile = customerMobile;
-            if (custData.email) customer.email = custData.email;
-            if (custData.address) customer.address = custData.address;
+            if (custData.email !== undefined) customer.email = custData.email;
+            if (custData.address !== undefined) customer.address = custData.address;
             saveStoredRecords(STORAGE_KEYS.CUSTOMERS, customers);
           } else {
             customer = {
@@ -504,11 +504,11 @@ api.interceptors.response.use(
               name: customerName,
               mobile: customerMobile,
               altMobile: custData.altMobile || '',
-              email: custData.email || 'chaithraarung4351@gmail.com',
-              address: custData.address || 'THIMMEGOWDANADODDI sugganahalli post kasaba hobli Channapatna 562128, Karnataka',
-              city: custData.city || 'Channapatna',
-              state: custData.state || 'Karnataka',
-              pincode: custData.pincode || '562128',
+              email: custData.email || '',
+              address: custData.address || '',
+              city: custData.city || '',
+              state: custData.state || '',
+              pincode: custData.pincode || '',
               preferredNotificationChannel: 'whatsapp',
               preferredLanguage: 'en',
               customerStatus: 'active',

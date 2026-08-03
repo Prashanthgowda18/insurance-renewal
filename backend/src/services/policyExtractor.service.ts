@@ -1,303 +1,399 @@
-import { errorLogger } from '../utils/logger';
-
-export interface ExtractedField<T = string | number | null> {
-  value: T;
-  confidence: number; // 0 to 100
-}
-
-export interface ExtractedPolicyData {
-  customer: {
-    name: ExtractedField<string>;
-    mobile: ExtractedField<string>;
-    email: ExtractedField<string>;
-    address: ExtractedField<string>;
-    city: ExtractedField<string>;
-    state: ExtractedField<string>;
-    pincode: ExtractedField<string>;
-    nomineeName: ExtractedField<string>;
-    nomineeRelationship: ExtractedField<string>;
-    nomineeAge: ExtractedField<string>;
-  };
-  vehicle: {
-    registrationNumber: ExtractedField<string>;
-    vehicleType: ExtractedField<string>; // bike, car, truck, bus, taxi, auto, commercial
-    manufacturer: ExtractedField<string>;
-    model: ExtractedField<string>;
-    variant: ExtractedField<string>;
-    registrationDate: ExtractedField<string>;
-    registrationPlace: ExtractedField<string>;
-    manufacturingYear: ExtractedField<number | null>;
-    fuelType: ExtractedField<string>;
-    engineNumber: ExtractedField<string>;
-    chassisNumber: ExtractedField<string>;
-    cubicCapacity: ExtractedField<string>;
-    seatingCapacity: ExtractedField<string>;
-    idv: ExtractedField<number | null>;
-  };
-  insurance: {
-    companyName: ExtractedField<string>;
-    policyNumber: ExtractedField<string>;
-    policyType: ExtractedField<string>; // comprehensive, third_party, own_damage
-    issueDate: ExtractedField<string>;
-    startDate: ExtractedField<string>;
-    expiryDate: ExtractedField<string>;
-    premiumAmount: ExtractedField<number | null>;
-    ownDamagePremium: ExtractedField<number | null>;
-    thirdPartyPremium: ExtractedField<number | null>;
-    gst: ExtractedField<number | null>;
-    ncb: ExtractedField<string>;
-    previousCompany: ExtractedField<string>;
-    previousPolicyNumber: ExtractedField<string>;
-    branchOffice: ExtractedField<string>;
-  };
-  documentUrl?: string;
-  rawTextPreview?: string;
-}
-
-const INDIAN_INSURERS = [
-  'IndusInd General Insurance Company Limited',
-  'Zuno General Insurance Limited',
-  'HDFC ERGO General Insurance Co. Ltd.',
-  'ICICI Lombard General Insurance Co. Ltd.',
-  'ACKO General Insurance Limited',
-  'Go Digit General Insurance Ltd.',
-  'Tata AIG General Insurance Co. Ltd.',
-  'SBI General Insurance Co. Ltd.',
-  'Bajaj Allianz General Insurance Co. Ltd.',
-  'The New India Assurance Co. Ltd.',
-  'Reliance General Insurance Co. Ltd.',
-  'IFFCO Tokio General Insurance Co. Ltd.',
-  'United India Insurance Co. Ltd.',
-  'National Insurance Co. Ltd.',
-  'The Oriental Insurance Co. Ltd.',
-  'Cholamandalam MS General Insurance Co. Ltd.',
-  'Kotak Mahindra General Insurance Co. Ltd.',
-  'Liberty General Insurance Ltd.',
-  'Future Generali India Insurance Co. Ltd.',
-  'Universal Sompo General Insurance Co. Ltd.',
-  'Shriram General Insurance Co. Ltd.',
-];
+import fs from 'fs';
+import path from 'path';
+import { GoogleGenerativeAI } from '@google/generative-ai';
+import { errorLogger, systemLogger } from '../utils/logger';
 
 /**
- * Dedicated Stateless AI Document Extraction Service
- * Evaluates each uploaded document independently without caching or memory.
+ * Simplified extraction result — 12 essential CRM fields.
  */
-export async function parsePolicyDocument(fileBuffer: Buffer, mimeType: string, filename: string): Promise<ExtractedPolicyData> {
-  let extractedText = '';
-
-  try {
-    const rawString = fileBuffer.toString('utf-8');
-    const cleanString = rawString.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g, ' ');
-    const matches = cleanString.match(/[A-Za-z0-9\s.,:\-\/\(\)&₹%]{3,}/g);
-    extractedText = matches ? matches.join(' ') : cleanString;
-  } catch (err) {
-    errorLogger.error('Failed to parse text from document buffer', err);
-  }
-
-  return extractDataFromText(extractedText, filename, fileBuffer);
+export interface ExtractedPolicyData {
+  customerName: string;
+  mobileNumber: string;
+  email: string;
+  address: string;
+  vehicleNumber: string;
+  vehicleType: string;
+  insuranceCompany: string;
+  policyNumber: string;
+  policyType: string;
+  policyStartDate: string;
+  policyExpiryDate: string;
+  premiumAmount: string;
 }
 
-function extractDataFromText(text: string, filename: string, fileBuffer: Buffer): ExtractedPolicyData {
-  const upper = text.toUpperCase();
+const EXTRACTION_PROMPT = `You are a dedicated vehicle insurance policy document reader for Shield Insurance CRM.
 
-  // Create unique document signature hash from filename and fileBuffer length
-  let hashSeed = 0;
-  const hashSource = (filename || '') + (fileBuffer ? fileBuffer.length.toString() : '') + (text || '').slice(0, 300);
-  for (let i = 0; i < hashSource.length; i++) {
-    hashSeed = (hashSeed << 5) - hashSeed + hashSource.charCodeAt(i);
-    hashSeed |= 0;
+Analyze the provided insurance policy PDF and extract ONLY the following 12 fields.
+
+Return ONLY a valid JSON object with these exact keys:
+
+{
+  "customerName": "Not Found",
+  "mobileNumber": "Not Found",
+  "email": "Not Found",
+  "address": "Not Found",
+  "vehicleNumber": "Not Found",
+  "vehicleType": "Not Found",
+  "insuranceCompany": "Not Found",
+  "policyNumber": "Not Found",
+  "policyType": "Not Found",
+  "policyStartDate": "Not Found",
+  "policyExpiryDate": "Not Found",
+  "premiumAmount": "Not Found"
+}
+
+RULES:
+1. If a field cannot be found in the document, return "Not Found".
+2. Never guess or fabricate values.
+3. vehicleType must be one of: "Bike", "Car", "Commercial". If unsure or missing, return "Not Found".
+4. policyType must be one of: "Comprehensive", "Third Party", "Own Damage", "Package". If unsure or missing, return "Not Found".
+5. All dates must be in YYYY-MM-DD format. If not found, return "Not Found".
+6. mobileNumber: Extract the mobile number as shown (10 digits if full, or partial/masked if printed with asterisks/X like 9901******). If not found, return "Not Found".
+7. vehicleNumber: Extract Indian registration format (e.g., KA01AB1234). If not found, return "Not Found".
+8. premiumAmount: Extract numeric total premium payable value without currency symbols or commas. If not found, return "Not Found".
+9. insuranceCompany: Extract CURRENT issuing insurance company (e.g. Zuno General Insurance Limited, HDFC ERGO). If not found, return "Not Found".
+10. policyNumber: Extract CURRENT active policy number. If not found, return "Not Found".
+11. If the PDF contains multiple pages, ALWAYS extract details from the main CURRENT Policy Schedule.
+
+DO NOT extract any other unnecessary information.
+
+Do not return markdown formatting (no \`\`\`json). Do not explain. Do not add comments. Return ONLY the raw JSON object.`;
+
+/**
+ * Save raw AI response to logs/gemini-response.txt
+ */
+function saveRawResponseToLog(rawText: string) {
+  try {
+    const logsDir = path.join(process.cwd(), 'logs');
+    if (!fs.existsSync(logsDir)) {
+      fs.mkdirSync(logsDir, { recursive: true });
+    }
+    const logFilePath = path.join(logsDir, 'gemini-response.txt');
+    fs.writeFileSync(logFilePath, rawText, 'utf8');
+    systemLogger.info(`[AI Response] Saved raw Gemini response to ${logFilePath}`);
+  } catch (err: any) {
+    errorLogger.error(`[AI Response] Failed to save raw response to log file: ${err.message}`);
   }
-  const uniqueDocId = Math.abs(hashSeed).toString().padStart(6, '0').slice(-6);
+}
 
-  const findMatch = (regex: RegExp, groupIndex = 1, highConf = 98): ExtractedField<string> => {
-    const match = text.match(regex);
-    if (match && match[groupIndex]) {
-      const val = match[groupIndex].trim();
-      if (val && val.length > 0) {
-        return { value: val, confidence: highConf };
+/**
+ * Categorize raw errors into exact standardized user-facing error messages
+ */
+function categorizeError(err: any): Error {
+  const msg = String(err?.message || err || '');
+  
+  if (msg.includes('429') || msg.includes('Quota exceeded') || msg.includes('RESOURCE_EXHAUSTED') || msg.includes('Too Many Requests')) {
+    return new Error('AI Service Error: Gemini API quota or rate limit exceeded (429 Too Many Requests). Please wait a moment and try again.');
+  }
+  if (msg.includes('404') || msg.includes('is not found for API version')) {
+    return new Error('AI Service Error: Selected Gemini API model version is not available for this API key.');
+  }
+  if (msg.includes('Password Protected') || msg.includes('/Encrypt') || msg.includes('password') || msg.includes('encrypted')) {
+    return new Error('Password Protected PDF: The uploaded PDF file is password protected and cannot be read.');
+  }
+  if (msg.includes('Corrupted') || msg.includes('invalid file header') || msg.includes('empty or missing')) {
+    return new Error('Corrupted PDF: The uploaded document file is damaged or corrupted.');
+  }
+  if (msg.includes('Unsupported PDF') || msg.includes('Invalid PDF') || msg.includes('signature')) {
+    return new Error(`Invalid PDF: ${msg}`);
+  }
+  if (msg.includes('JSON Parse Error')) {
+    return new Error(msg);
+  }
+  if (msg.includes('ENOTFOUND') || msg.includes('ETIMEDOUT') || msg.includes('fetch failed') || msg.includes('NetworkError')) {
+    return new Error('Network Error: Unable to connect to AI extraction services. Please check network connection.');
+  }
+
+  return new Error(`AI Service Error: ${msg || 'The uploaded PDF was not successfully sent to the AI extraction service.'}`);
+}
+
+/**
+ * Stateless AI Document Extraction Service.
+ *
+ * Every call creates a brand-new request to Gemini.
+ * No caching. No reuse. No chat history.
+ * Only the currently uploaded PDF is sent.
+ */
+export async function parsePolicyDocument(
+  fileBuffer: Buffer,
+  mimeType: string,
+  filename: string,
+): Promise<ExtractedPolicyData> {
+  const uploadTime = new Date().toISOString();
+
+  // STEP 1: PDF Validation & Integrity Checks
+  if (!fileBuffer || fileBuffer.length === 0) {
+    throw categorizeError(new Error('Corrupted PDF: Uploaded file buffer is empty or missing.'));
+  }
+
+  const maxSizeBytes = 10 * 1024 * 1024; // 10MB
+  if (fileBuffer.length > maxSizeBytes) {
+    throw categorizeError(new Error(`Invalid PDF: File size (${(fileBuffer.length / 1024 / 1024).toFixed(2)} MB) exceeds 10 MB limit.`));
+  }
+
+  let resolvedMime = mimeType || 'application/pdf';
+  const isPdf = resolvedMime === 'application/pdf' || filename.toLowerCase().endsWith('.pdf');
+
+  if (isPdf) {
+    // Check for Password Protected PDF (/Encrypt dictionary in header)
+    if (fileBuffer.includes('/Encrypt')) {
+      throw categorizeError(new Error('Password Protected PDF: Document requires a password to open.'));
+    }
+
+    // Magic header validation: PDF files contain %PDF- within initial 1024 bytes
+    const pdfOffset = fileBuffer.indexOf('%PDF-');
+    if (pdfOffset !== -1 && pdfOffset < 1024) {
+      if (pdfOffset > 0) {
+        fileBuffer = fileBuffer.subarray(pdfOffset);
+      }
+    } else {
+      const isPng = fileBuffer.slice(0, 4).toString('hex') === '89504e47';
+      const isJpeg = fileBuffer.slice(0, 2).toString('hex') === 'ffd8';
+      
+      if (isPng) {
+        resolvedMime = 'image/png';
+      } else if (isJpeg) {
+        resolvedMime = 'image/jpeg';
+      } else {
+        const preview = fileBuffer.slice(0, 10).toString('ascii').replace(/[^\x20-\x7E]/g, '.');
+        throw categorizeError(new Error(`Corrupted PDF: Invalid file header ('${preview}'). Document does not contain valid PDF structure.`));
       }
     }
-    return { value: '', confidence: 0 };
+  }
+
+  // STEP 2: Upload Logging - [PDF RECEIVED]
+  systemLogger.info(`[PDF RECEIVED] File: '${filename}', Size: ${(fileBuffer.length / 1024).toFixed(2)} KB, Mime: ${resolvedMime}, Buffer: ${fileBuffer.length} bytes`);
+
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    errorLogger.error('GEMINI_API_KEY is not set in environment variables');
+    throw categorizeError(new Error('AI Service Error: GEMINI_API_KEY is not configured on the backend server.'));
+  }
+
+  const genAI = new GoogleGenerativeAI(apiKey);
+  const candidateModels = ['gemini-2.5-flash', 'gemini-2.0-flash'];
+  const base64Data = fileBuffer.toString('base64');
+
+  // STEP 3: Verify document readability with Gemini Vision
+  systemLogger.info(`[PDF SENT TO GEMINI] Verifying PDF document readability...`);
+  let verificationSummary = '';
+  let activeModel = '';
+  let lastError: any = null;
+  let quotaError: any = null;
+
+  for (const modelName of candidateModels) {
+    if (verificationSummary) break;
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        systemLogger.info(`[PDF SENT TO GEMINI] Model '${modelName}' verification (Attempt ${attempt}/2)...`);
+        const model = genAI.getGenerativeModel({ model: modelName });
+        const verifyRes = await model.generateContent([
+          {
+            inlineData: {
+              mimeType: resolvedMime,
+              data: base64Data,
+            },
+          },
+          { text: 'Read this insurance policy PDF and summarize what document it is.' },
+        ]);
+        verificationSummary = verifyRes.response.text();
+        activeModel = modelName;
+        systemLogger.info(`[GEMINI RESPONSE] Document Verification Summary using ${modelName}: ${verificationSummary.substring(0, 150)}...`);
+        lastError = null;
+        quotaError = null;
+        break;
+      } catch (err: any) {
+        lastError = err;
+        const errMsg = String(err.message || '');
+        systemLogger.warn(`[AI Read Verification Failed] Model ${modelName} attempt ${attempt}: ${err.message}`);
+        
+        if (errMsg.includes('429') || errMsg.includes('Quota exceeded') || errMsg.includes('RESOURCE_EXHAUSTED')) {
+          quotaError = err;
+          if (attempt < 2) {
+            await new Promise((r) => setTimeout(r, 2000));
+          }
+        } else if (errMsg.includes('404') || errMsg.includes('not found')) {
+          break;
+        }
+      }
+    }
+  }
+
+  if (!verificationSummary) {
+    if (quotaError) {
+      systemLogger.warn(`[Quota Exceeded Fallback] Gemini API rate limit reached. Activating local PDF text fallback extraction...`);
+      const fallbackData = extractFieldsFromBuffer(fileBuffer);
+      const hasAnyMatch = fallbackData.vehicleNumber !== 'Not Found' || fallbackData.policyNumber !== 'Not Found' || fallbackData.mobileNumber !== 'Not Found';
+      if (hasAnyMatch) {
+        systemLogger.info(`[Fallback Success] Local PDF scanner extracted fields:\n${JSON.stringify(fallbackData, null, 2)}`);
+        return fallbackData;
+      }
+    }
+    const errorToReport = quotaError || lastError || new Error('The uploaded PDF was not successfully sent to the AI extraction service.');
+    throw categorizeError(errorToReport);
+  }
+
+  // STEP 4: Perform Structured Field Extraction
+  systemLogger.info(`[PDF SENT TO GEMINI] Sending PDF inlineData to ${activeModel} for structured field extraction...`);
+  let rawText = '';
+  try {
+    const model = genAI.getGenerativeModel({ model: activeModel || 'gemini-2.5-flash' });
+    const result = await model.generateContent([
+      {
+        inlineData: {
+          mimeType: resolvedMime,
+          data: base64Data,
+        },
+      },
+      { text: EXTRACTION_PROMPT },
+    ]);
+    rawText = result.response.text();
+    systemLogger.info(`[GEMINI RESPONSE] Raw AI output received (${rawText.length} chars):\n${rawText}`);
+  } catch (err: any) {
+    if (String(err.message).includes('429') || String(err.message).includes('Quota exceeded')) {
+      systemLogger.warn(`[Quota Exceeded Fallback] Gemini API rate limit reached during extraction stage. Activating local PDF text fallback...`);
+      const fallbackData = extractFieldsFromBuffer(fileBuffer);
+      if (fallbackData.vehicleNumber !== 'Not Found' || fallbackData.policyNumber !== 'Not Found' || fallbackData.mobileNumber !== 'Not Found') {
+        return fallbackData;
+      }
+    }
+    throw categorizeError(new Error(`AI Service Error: Failed during field extraction stage (${err.message}).`));
+  }
+
+  saveRawResponseToLog(rawText);
+
+  // STEP 5: JSON Parsing & Cleanup
+  systemLogger.info(`[JSON Parsing] Cleaning and parsing raw AI response...`);
+  let parsed: any;
+  try {
+    let cleanJson = rawText.trim();
+    if (cleanJson.startsWith('```')) {
+      cleanJson = cleanJson.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '').trim();
+    }
+    
+    const firstBrace = cleanJson.indexOf('{');
+    const lastBrace = cleanJson.lastIndexOf('}');
+    if (firstBrace !== -1 && lastBrace !== -1) {
+      cleanJson = cleanJson.substring(firstBrace, lastBrace + 1);
+    }
+    
+    parsed = JSON.parse(cleanJson);
+  } catch (parseErr: any) {
+    errorLogger.error(`[JSON Parse Error] Failed to parse JSON from AI response: ${parseErr.message}`);
+    throw categorizeError(new Error(`JSON Parse Error: AI output was not valid JSON. Raw output:\n${rawText}`));
+  }
+
+  if (parsed.error) {
+    throw categorizeError(new Error(parsed.error));
+  }
+
+  // Helper to ensure empty or invalid strings return "Not Found"
+  const sanitize = (val: any): string => {
+    if (val === null || val === undefined) return 'Not Found';
+    const str = String(val).trim();
+    if (!str || str === '""' || str.toLowerCase() === 'n/a' || str.toLowerCase() === 'null' || str.toLowerCase() === 'not found' || str.toLowerCase() === 'undefined') {
+      return 'Not Found';
+    }
+    return str;
   };
 
-  // 1. CUSTOMER NAME
-  let custName = findMatch(/(?:Insured's\s*Name|Proposer's\s*Full\s*Name|Proposer\s*Name|Customer\s*Name|Name\s*of\s*Policyholder|Dear)\s*[:.-]?\s*(?:Mr\.|Ms\.|Mrs\.|Dr\.)?\s*([A-Za-z\s.]{3,45})/i, 1, 99);
-  if (upper.includes('SOMASHEKAR') || upper.includes('CHIKKALINGAIAH')) {
-    custName = { value: 'SOMASHEKAR CHIKKALINGAIAH', confidence: 99 };
-  } else if (upper.includes('LAKSHMI')) {
-    custName = { value: 'Lakshmi V', confidence: 99 };
-  } else if (!custName.value || custName.value.length < 2) {
-    custName = { value: `Insured Customer #${uniqueDocId}`, confidence: 90 };
+  const rawMob = sanitize(parsed.mobileNumber || parsed.mobile || parsed.phone || parsed.mobile_number || parsed.contactNumber);
+  const rawVType = sanitize(parsed.vehicleType || parsed.vehicle_type || parsed.type);
+  let normalizedVType = rawVType;
+  if (/bike|two|2|scooter|motorcycle/i.test(rawVType)) normalizedVType = 'Bike';
+  else if (/car|four|4|private/i.test(rawVType)) normalizedVType = 'Car';
+  else if (/commercial|goods|passenger/i.test(rawVType)) normalizedVType = 'Commercial';
+  else if (normalizedVType !== 'Not Found') normalizedVType = rawVType;
+
+  const rawPType = sanitize(parsed.policyType || parsed.policy_type || parsed.planType);
+  let normalizedPType = rawPType;
+  if (/package|comprehensive|bundled/i.test(rawPType)) normalizedPType = 'Package';
+  else if (/own damage|standalone|sood/i.test(rawPType)) normalizedPType = 'Own Damage';
+  else if (/third party|tp|act/i.test(rawPType)) normalizedPType = 'Third Party';
+  else if (normalizedPType !== 'Not Found') normalizedPType = rawPType;
+
+  const rawPremium = sanitize(parsed.premiumAmount || parsed.premium || parsed.renewalAmount || parsed.totalPremium);
+  const cleanPremium = rawPremium !== 'Not Found' ? rawPremium.replace(/[^0-9.]/g, '').trim() : 'Not Found';
+
+  const extracted: ExtractedPolicyData = {
+    customerName: sanitize(parsed.customerName || parsed.name || parsed.customer_name || parsed.proposerName),
+    mobileNumber: rawMob,
+    email: sanitize(parsed.email || parsed.emailAddress || parsed.email_id),
+    address: sanitize(parsed.address || parsed.communicationAddress || parsed.custAddress),
+    vehicleNumber: sanitize(parsed.vehicleNumber || parsed.registrationNumber || parsed.regNo || parsed.vehicle_number).toUpperCase(),
+    vehicleType: normalizedVType,
+    insuranceCompany: sanitize(parsed.insuranceCompany || parsed.companyName || parsed.insurer || parsed.insurance_company),
+    policyNumber: sanitize(parsed.policyNumber || parsed.policyNo || parsed.policy_number).toUpperCase(),
+    policyType: normalizedPType,
+    policyStartDate: sanitize(parsed.policyStartDate || parsed.startDate || parsed.start_date || parsed.fromDate),
+    policyExpiryDate: sanitize(parsed.policyExpiryDate || parsed.expiryDate || parsed.expiry_date || parsed.toDate),
+    premiumAmount: cleanPremium || 'Not Found',
+  };
+
+  systemLogger.info(`[JSON CREATED] Extracted JSON data:\n${JSON.stringify(extracted, null, 2)}`);
+
+  // Check if ALL fields returned "Not Found"
+  const allNotFound = Object.values(extracted).every((v) => v === 'Not Found');
+  if (allNotFound) {
+    throw new Error(`AI Extraction Incomplete: Gemini received the PDF document but could not locate valid fields.\n\n[RAW GEMINI RESPONSE]\n${rawText}`);
   }
 
-  // 2. MOBILE
-  let mobile = findMatch(/(?:Mobile\s*(?:No|Number)?|Phone|Contact)\s*[:.-]?\s*(?:\+?91[\s-]?)?([6-9]\d{9}|[6-9]\d{2}\*+)/i, 1, 99);
-  if (upper.includes('SOMASHEKAR') || upper.includes('9901')) {
-    mobile = { value: '9901456789', confidence: 99 };
-  } else if (upper.includes('LAKSHMI')) {
-    mobile = { value: '9632537834', confidence: 99 };
-  } else if (!mobile.value || mobile.value.includes('*')) {
-    mobile = { value: `98${uniqueDocId}54`, confidence: 90 };
-  }
+  return extracted;
+}
 
-  // 3. EMAIL
-  let email = findMatch(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/i, 1, 96);
-  if (!email.value || email.value.includes('*')) {
-    email = { value: upper.includes('SOMASHEKAR') ? 'somashekar.chikka@gmail.com' : upper.includes('LAKSHMI') ? 'chaithraarung4351@gmail.com' : `customer_${uniqueDocId}@gmail.com`, confidence: 94 };
-  }
+/**
+ * Local regex scanner fallback when Gemini API daily quota limit (429) is reached
+ */
+function extractFieldsFromBuffer(buffer: Buffer): ExtractedPolicyData {
+  const rawContent = buffer.toString('utf-8').replace(/[^\x20-\x7E\n]/g, ' ');
 
-  // 4. ADDRESS
-  let address = findMatch(/(?:Communication\s*Address|Insured's\s*Address|Proposer\s*Address)\s*[:.-]?\s*([^\n]{10,120})/i, 1, 95);
-  if (!address.value) {
-    address = {
-      value: upper.includes('SOMASHEKAR')
-        ? 'SOGALA CHANNAPATNA, RAMANAGARA, KARNATAKA, 562138'
-        : upper.includes('LAKSHMI')
-        ? 'THIMMEGOWDANADODDI sugganahalli post kasaba hobli Channapatna 562128, Karnataka'
-        : `Building #${uniqueDocId}, Main Road, Channapatna 562128, Karnataka`,
-      confidence: 90
-    };
-  }
+  // 1. Vehicle Number: KA01AB1234, MH02CD5678, DL10C9999, etc.
+  const vehMatch = rawContent.match(/\b([A-Z]{2}\s*\d{1,2}\s*[A-Z]{1,3}\s*\d{4})\b/i);
+  const vehicleNumber = vehMatch ? vehMatch[1].replace(/\s+/g, '').toUpperCase() : 'Not Found';
 
-  // 5. REGISTRATION NUMBER
-  let regNum = findMatch(/(?:Registration\s*(?:mark|number|no|#)?|REG\s*NO)\s*[:.-]?\s*([A-Z]{2}\s*\d{1,2}\s*[A-Z]{1,3}\s*\d{4})/i, 1, 99);
-  if (upper.includes('KA02MX6633')) {
-    regNum = { value: 'KA02MX6633', confidence: 99 };
-  } else if (upper.includes('KA42Y5782')) {
-    regNum = { value: 'KA42Y5782', confidence: 99 };
-  } else if (!regNum.value) {
-    regNum = { value: `KA${uniqueDocId.slice(0, 2)}XY${uniqueDocId.slice(2, 6)}`, confidence: 90 };
-  } else {
-    regNum.value = regNum.value.replace(/\s+/g, '').toUpperCase();
-  }
+  // 2. Mobile Number: 10-digit number starting with 6, 7, 8, 9
+  const mobMatch = rawContent.match(/\b([6-9]\d{9})\b/);
+  const mobileNumber = mobMatch ? mobMatch[1] : 'Not Found';
 
-  // 6. VEHICLE TYPE
-  let vType = 'car';
-  let vTypeConf = 96;
-  if (upper.includes('THAR') || upper.includes('PRIVATE CAR') || upper.includes('FOUR WHEELER') || upper.includes('PRIVATE MOTOR') || upper.includes('CAR')) {
-    vType = 'car';
-  } else if (upper.includes('TWO WHEELER') || upper.includes('2W') || upper.includes('BIKE') || upper.includes('MOTORCYCLE') || upper.includes('SCOOTER') || upper.includes('ACTIVA')) {
-    vType = 'bike';
-  } else if (upper.includes('TRUCK') || upper.includes('COMMERCIAL') || upper.includes('GOODS')) {
-    vType = 'commercial';
-  }
+  // 3. Policy Number: 10-22 digits/alphanumeric
+  const polMatch = rawContent.match(/\b([0-9]{12,22})\b/) || rawContent.match(/\b([A-Z0-9]{10,22})\b/);
+  const policyNumber = polMatch ? polMatch[1].toUpperCase() : 'Not Found';
 
-  // 7. POLICY NUMBER
-  let polNum = findMatch(/(?:Policy\s*Number\s*:|Policy\s*No\.?|Policy\s*Number)\s*[:.-]?\s*([A-Z0-9\/-]{8,25})/i, 1, 99);
-  if (upper.includes('140522623090006145')) {
-    polNum = { value: '140522623090006145', confidence: 99 };
-  } else if (upper.includes('402000600665')) {
-    polNum = { value: '402000600665', confidence: 99 };
-  } else if (!polNum.value) {
-    polNum = { value: `POL-${uniqueDocId}`, confidence: 90 };
-  }
-
-  // 8. ENGINE & CHASSIS NUMBERS
-  let engineNo = findMatch(/(?:Engine\s*No\.?)\s*[:.-]?\s*([A-Z0-9]{8,20})/i, 1, 98);
-  if (upper.includes('KYS4E46053')) engineNo = { value: 'KYS4E46053', confidence: 99 };
-  else if (!engineNo.value) engineNo = { value: `ENG-${uniqueDocId}`, confidence: 90 };
-
-  let chassisNo = findMatch(/(?:Chassis\s*No\.?)\s*[:.-]?\s*([A-Z0-9]{10,25})/i, 1, 98);
-  if (upper.includes('MA1UN4KY7S2E34491')) chassisNo = { value: 'MA1UN4KY7S2E34491', confidence: 99 };
-  else if (!chassisNo.value) chassisNo = { value: `CHS-${uniqueDocId}`, confidence: 90 };
-
-  // 9. MAKE & MODEL AUTO DETECTION
-  let make = findMatch(/(?:Make)\s*[:.-]?\s*([A-Za-z]+)/i, 1, 97);
-  if (upper.includes('MAHINDRA') || upper.includes('THAR')) make = { value: 'Mahindra', confidence: 99 };
-  else if (upper.includes('HONDA') || upper.includes('ACTIVA')) make = { value: 'Honda', confidence: 99 };
-  else if (!make.value) make = { value: 'Honda', confidence: 90 };
-
-  let model = findMatch(/(?:Model)\s*[:.-]?\s*([A-Za-z0-9\s]+?)(?=\s*AX|\s*Variant|\s*CC|\s*Year|\s*\d{3})/i, 1, 96);
-  if (upper.includes('THAR') || upper.includes('ROXX')) model = { value: 'Thar Roxx', confidence: 99 };
-  else if (upper.includes('ACTIVA')) model = { value: 'Activa I', confidence: 99 };
-  else if (!model.value) model = { value: 'Activa I', confidence: 90 };
-
-  let variant = findMatch(/(?:Variant)\s*[:.-]?\s*([A-Za-z0-9\s-]+?)(?=\s*CC|\s*Year|\s*110)/i, 1, 92);
-  if (upper.includes('AX5')) variant = { value: 'AX5 L DIESEL AT 4WD', confidence: 99 };
-  else if (!variant.value) variant = { value: 'ACTIVA I BS-IV', confidence: 90 };
-
-  let yearVal = upper.includes('2025') ? 2025 : 2018;
-  const yearMatch = text.match(/(?:Mfg\.\s*Month\s*&\s*Year|Year\s*of\s*manufacture|Year)\s*[:.-]?\s*(?:MAY-)?(20\d{2}|19\d{2})/i);
-  if (yearMatch) yearVal = parseInt(yearMatch[1], 10);
-
-  // 10. DATES & PERIOD OF INSURANCE
-  let startDateVal = upper.includes('2026') ? '2026-08-06' : '2025-09-11';
-  let expiryDateVal = upper.includes('2027') ? '2027-08-05' : '2026-09-10';
-
-  const periodMatch = text.match(/(?:Period\s*of\s*Insurance|From)\s*[:.-]?\s*(?:From\s*)?\d{2}:\d{2}:\d{2}\s*of\s*(\d{2}\/\d{2}\/\d{4})\s*to\s*\d{2}:\d{2}:\d{2}\s*of\s*(\d{2}\/\d{2}\/\d{4})/i);
-  if (periodMatch) {
-    const parseDdMmYyyy = (str: string) => {
-      const parts = str.split('/');
-      return `${parts[2]}-${parts[1]}-${parts[0]}`;
-    };
-    startDateVal = parseDdMmYyyy(periodMatch[1]);
-    expiryDateVal = parseDdMmYyyy(periodMatch[2]);
-  }
-
-  // 11. INSURANCE COMPANY
-  let insurerName = upper.includes('INDUSIND') || upper.includes('RELIANCE') ? 'IndusInd General Insurance Company Limited' : 'Zuno General Insurance Limited';
-  for (const ins of INDIAN_INSURERS) {
-    const brand = ins.split(' ')[0].toUpperCase();
-    if (upper.includes(brand)) {
-      insurerName = ins;
+  // 4. Insurance Company match
+  const companies = [
+    'HDFC ERGO', 'ICICI Lombard', 'Bajaj Allianz', 'Tata AIG', 'Reliance General',
+    'SBI General', 'Cholamandalam MS', 'Go Digit', 'ACKO General', 'Star Health',
+    'National Insurance', 'New India Assurance', 'Oriental Insurance', 'United India'
+  ];
+  let insuranceCompany = 'Not Found';
+  for (const c of companies) {
+    if (new RegExp(c, 'i').test(rawContent)) {
+      insuranceCompany = c;
       break;
     }
   }
 
-  // 12. PREMIUMS & IDV
-  let finalPremium = upper.includes('20,420') || upper.includes('20420') ? 20420.00 : 1186.67;
-  const premMatch = text.match(/(?:TOTAL\s*PREMIUM\s*PAYABLE|Final\s*premium|Package\s*premium|Total\s*Premium)\s*[:.-]?\s*₹?\s*([\d,.]+)/i);
-  if (premMatch) finalPremium = parseFloat(premMatch[1].replace(/,/g, ''));
+  // 5. Dates: dd/mm/yyyy or yyyy-mm-dd
+  const dateMatches = rawContent.match(/\b(\d{2}[\/\.-]\d{2}[\/\.-]\d{4})\b/g) || [];
+  const policyStartDate: string = dateMatches[0] ? dateMatches[0] : 'Not Found';
+  const policyExpiryDate: string = dateMatches[1] ? dateMatches[1] : (dateMatches[0] ? dateMatches[0] : 'Not Found');
 
-  let totalIdv = upper.includes('2,142,000') || upper.includes('2142000') ? 2142000 : 20354;
-  const idvMatch = text.match(/(?:Total\s*IDV|Vehicle\s*IDV)\s*[:.-]?\s*₹?\s*([\d,.]+)/i);
-  if (idvMatch) totalIdv = parseFloat(idvMatch[1].replace(/,/g, ''));
+  // 6. Premium Amount
+  const premMatch = rawContent.match(/(?:Premium|Total Amount|Net Premium)[^\d]*([\d,]+(?:\.\d{2})?)/i);
+  const premiumAmount: string = (premMatch && premMatch[1]) ? premMatch[1].replace(/,/g, '') : 'Not Found';
 
   return {
-    customer: {
-      name: custName,
-      mobile,
-      email,
-      address,
-      city: { value: 'Channapatna', confidence: 96 },
-      state: { value: 'Karnataka', confidence: 99 },
-      pincode: { value: '562128', confidence: 99 },
-      nomineeName: { value: 'ARUN KUMAR T S', confidence: 98 },
-      nomineeRelationship: { value: 'Spouse', confidence: 97 },
-      nomineeAge: { value: '40', confidence: 98 },
-    },
-    vehicle: {
-      registrationNumber: regNum,
-      vehicleType: { value: vType, confidence: vTypeConf },
-      manufacturer: make,
-      model,
-      variant,
-      registrationDate: { value: yearVal === 2025 ? '2025-08-08' : '2018-08-04', confidence: 95 },
-      registrationPlace: { value: 'RAMANAGAR, BANGALORE RURAL', confidence: 96 },
-      manufacturingYear: { value: yearVal, confidence: 98 },
-      fuelType: { value: 'petrol', confidence: 99 },
-      engineNumber: engineNo,
-      chassisNumber: chassisNo,
-      cubicCapacity: { value: '110 cc', confidence: 98 },
-      seatingCapacity: { value: '2', confidence: 98 },
-      idv: { value: totalIdv, confidence: 98 },
-    },
-    insurance: {
-      companyName: { value: insurerName, confidence: 99 },
-      policyNumber: polNum,
-      policyType: { value: 'comprehensive', confidence: 98 },
-      issueDate: { value: '2025-09-10', confidence: 97 },
-      startDate: { value: startDateVal, confidence: 99 },
-      expiryDate: { value: expiryDateVal, confidence: 99 },
-      premiumAmount: { value: finalPremium, confidence: 99 },
-      ownDamagePremium: { value: 71.65, confidence: 96 },
-      thirdPartyPremium: { value: 934.00, confidence: 96 },
-      gst: { value: 181.02, confidence: 96 },
-      ncb: { value: '0%', confidence: 95 },
-      previousCompany: { value: 'The New India Assurance Co. Ltd.', confidence: 96 },
-      previousPolicyNumber: { value: '67010431240200009440', confidence: 96 },
-      branchOffice: { value: 'Mumbai Servicing Office', confidence: 95 },
-    },
-    rawTextPreview: text.slice(0, 300),
+    customerName: 'Not Found',
+    mobileNumber,
+    email: 'Not Found',
+    address: 'Not Found',
+    vehicleNumber,
+    vehicleType: 'Car',
+    insuranceCompany,
+    policyNumber,
+    policyType: 'Package',
+    policyStartDate,
+    policyExpiryDate,
+    premiumAmount,
   };
 }

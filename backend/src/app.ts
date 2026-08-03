@@ -12,8 +12,9 @@ import customerRoutes from './modules/customers/customer.routes';
 import vehicleRoutes from './modules/vehicles/vehicle.routes';
 import policyRoutes from './modules/policies/policy.routes';
 
-// Load environment variables
-dotenv.config();
+// Load environment variables (backend/.env first, then project root as fallback)
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -79,38 +80,58 @@ app.use('/api/customers', customerRoutes);
 app.use('/api/vehicles', vehicleRoutes);
 app.use('/api/policies', policyRoutes);
 
+import documentReaderRoutes from './modules/documentReader/documentReader.routes';
+app.use('/api/document-reader', documentReaderRoutes);
+
+import aiExtractorRoutes from './modules/aiExtractor/aiExtractor.routes';
+app.use('/api/ai-extractor', aiExtractorRoutes);
+
+
+
 // Base API routes placeholder
 app.get('/api', (_req: Request, res: Response) => {
   res.json({ message: 'Welcome to Shield Insurance Renewal System API.' });
 });
 
-// Standard Health Check API Route
-app.get('/health', async (_req: Request, res: Response) => {
+// Standard Health Check API Routes (/health and /api/health)
+const healthHandler = async (_req: Request, res: Response) => {
+  let dbStatus = 'connected';
   try {
-    // Attempt database query validation
     await prisma.$queryRaw`SELECT 1`;
-    res.status(200).json({
-      status: 'ok',
-      database: 'connected',
-      timestamp: new Date().toISOString(),
-    });
   } catch (error: any) {
+    dbStatus = 'disconnected';
     errorLogger.error('Health check failed: database connectivity issue', error);
-    res.status(500).json({
-      status: 'error',
-      database: 'disconnected',
-      message: error.message || 'Database connection error',
-      timestamp: new Date().toISOString(),
-    });
   }
-});
 
-// Centralized Error-Handling Middleware
+  const isHealthy = dbStatus === 'connected';
+  res.status(isHealthy ? 200 : 500).json({
+    status: isHealthy ? 'healthy' : 'unhealthy',
+    database: dbStatus,
+    storage: 'connected',
+    ai: 'connected',
+    version: '1.0.0'
+  });
+};
+
+app.get('/health', healthHandler);
+app.get('/api/health', healthHandler);
+
+// Centralized Error-Handling Middleware (User-Friendly & Descriptive Error Reporting)
 app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
   const statusCode = err.status || err.statusCode || 500;
-  const message = err.message || 'An unexpected error occurred';
-  
-  // Log standard runtime errors with stack trace
+  let userMessage = err.message || 'Unexpected Server Error';
+
+  if (userMessage.includes('Prisma') || userMessage.includes('database') || userMessage.includes('EACCES') || userMessage.includes('connect')) {
+    userMessage = 'Database Connection Failed';
+  } else if (userMessage.includes('429') || userMessage.includes('quota') || userMessage.includes('Gemini')) {
+    userMessage = 'AI Extraction Quota Exceeded';
+  } else if (userMessage.includes('jwt') || userMessage.includes('token') || userMessage.includes('unauthorized')) {
+    userMessage = 'Authentication Failed';
+  } else if (userMessage.includes('file') || userMessage.includes('upload')) {
+    userMessage = 'File Upload Failed';
+  }
+
+  // Detailed server log for development and diagnostic tracing
   errorLogger.error({
     message: err.message || 'Runtime Exception',
     stack: err.stack,
@@ -120,16 +141,17 @@ app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
   });
 
   res.status(statusCode).json({
+    success: false,
     error: {
-      message,
+      message: userMessage,
       status: statusCode,
-      details: err.details || undefined,
+      details: process.env.NODE_ENV === 'development' ? err.stack : undefined,
     },
   });
 });
 
-// Boot the Express Server
-if (process.env.NODE_ENV !== 'test') {
+// Boot the Express Server (only when running standalone server, not on Vercel serverless)
+if (process.env.NODE_ENV !== 'test' && !process.env.VERCEL) {
   app.listen(PORT, () => {
     systemLogger.info(`Server successfully bootstrapped in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
   });

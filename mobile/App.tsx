@@ -3,7 +3,6 @@ import { ThemeMode, COLORS } from './src/theme/colors';
 import { DashboardScreen } from './src/screens/DashboardScreen';
 import { CustomerProfileScreen } from './src/screens/CustomerProfileScreen';
 import { CameraScannerScreen } from './src/screens/CameraScannerScreen';
-import { QRScannerScreen } from './src/screens/QRScannerScreen';
 import { CustomersScreen } from './src/screens/CustomersScreen';
 
 export default function App() {
@@ -107,17 +106,6 @@ export default function App() {
         />
       )}
 
-      {currentScreen === 'qr_scanner' && (
-        <QRScannerScreen 
-          theme={theme} 
-          onBack={() => setCurrentScreen('dashboard')}
-          onCustomerFound={(id) => {
-            setSelectedCustomerId(id);
-            setCurrentScreen('customer_profile');
-          }}
-        />
-      )}
-
       {/* Mobile Bottom Navigation Bar */}
       <div style={{
         position: 'fixed',
@@ -148,12 +136,6 @@ export default function App() {
           style={{ background: 'none', border: 'none', color: currentScreen === 'camera_scanner' ? colors.primary : colors.textMuted, fontSize: '11px', fontWeight: 'bold', cursor: 'pointer' }}
         >
           📷 Scan
-        </button>
-        <button 
-          onClick={() => setCurrentScreen('qr_scanner')}
-          style={{ background: 'none', border: 'none', color: currentScreen === 'qr_scanner' ? colors.primary : colors.textMuted, fontSize: '11px', fontWeight: 'bold', cursor: 'pointer' }}
-        >
-          🔍 QR
         </button>
       </div>
 

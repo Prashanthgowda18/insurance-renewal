@@ -9,6 +9,7 @@ export interface AuthenticatedRequest extends Request {
     email: string;
     name: string;
     role: string;
+    agencyId?: string | null;
   };
 }
 
@@ -36,7 +37,7 @@ export const authenticateJWT = async (
     // Fetch administrative details from database
     const admin = await prisma.admin.findUnique({
       where: { id: decoded.id },
-      select: { id: true, email: true, name: true, role: true },
+      select: { id: true, email: true, name: true, role: true, agencyId: true },
     });
 
     if (!admin) {

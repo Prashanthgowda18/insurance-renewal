@@ -108,6 +108,7 @@ export const MANUFACTURER_MODELS_MAP: Record<string, string[]> = {
 };
 
 export const INSURANCE_COMPANIES = [
+  'IndusInd General Insurance',
   'HDFC ERGO',
   'ICICI Lombard',
   'Bajaj Allianz',
@@ -128,6 +129,8 @@ export const INSURANCE_COMPANIES = [
   'Liberty General',
   'Magma HDI',
   'Universal Sompo',
+  'Zuno General Insurance Limited',
+  'Zuno General Insurance',
   'Zuno Insurance',
   'Shriram General',
   'Other',

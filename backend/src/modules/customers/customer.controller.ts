@@ -111,6 +111,7 @@ export const createCustomer = async (req: AuthenticatedRequest, res: Response): 
       // 1. Create Customer
       const createdCustomer = await tx.customer.create({
         data: {
+          agencyId: req.admin?.agencyId || null,
           name: data.name,
           mobile: data.mobile,
           altMobile: data.altMobile || null,

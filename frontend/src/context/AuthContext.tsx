@@ -44,7 +44,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Silent Auto-login in background on first load
       try {
         const response = await axios.post(
-          (import.meta.env.VITE_API_URL || 'http://localhost:5000/api') + '/auth/login',
+          (import.meta.env.VITE_API_URL || (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? 'http://localhost:5000/api' : '/api')) + '/auth/login',
           {
             email: 'admin@example.com',
             password: 'admin123',

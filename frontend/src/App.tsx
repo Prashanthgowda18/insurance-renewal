@@ -10,11 +10,11 @@ import { Customers } from './pages/Customers';
 import { CustomerProfile } from './pages/CustomerProfile';
 import { Vehicles } from './pages/Vehicles';
 import { Policies } from './pages/Policies';
-import { ReminderHistory } from './pages/ReminderHistory';
 import { Calendar } from './pages/Calendar';
 import { Reports } from './pages/Reports';
 import { ActivityLogs } from './pages/ActivityLogs';
-import { UploadPolicy } from './pages/UploadPolicy';
+import { AddCustomer } from './pages/AddCustomer';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { Loader2 } from 'lucide-react';
 
 // Protected Route Guard
@@ -57,14 +57,13 @@ const AppRoutes: React.FC = () => {
 
         {/* Protected — all wrapped in shared Layout */}
         <Route path="/"                element={<WithLayout><Dashboard /></WithLayout>} />
-        <Route path="/upload-policy"   element={<WithLayout><UploadPolicy /></WithLayout>} />
+        <Route path="/add-customer"   element={<WithLayout><AddCustomer /></WithLayout>} />
         <Route path="/customers"       element={<WithLayout><Customers /></WithLayout>} />
         <Route path="/customers/:id"   element={<WithLayout><CustomerProfile /></WithLayout>} />
         <Route path="/vehicles"        element={<WithLayout><Vehicles /></WithLayout>} />
         <Route path="/policies"        element={<WithLayout><Policies /></WithLayout>} />
         <Route path="/renewals"        element={<WithLayout><Policies /></WithLayout>} />
         <Route path="/calendar"        element={<WithLayout><Calendar /></WithLayout>} />
-        <Route path="/reminder-history" element={<WithLayout><ReminderHistory /></WithLayout>} />
         <Route path="/reports"         element={<WithLayout><Reports /></WithLayout>} />
         <Route path="/activity-logs"   element={<WithLayout><ActivityLogs /></WithLayout>} />
         <Route path="/settings"        element={<WithLayout><Settings /></WithLayout>} />
@@ -78,11 +77,13 @@ const AppRoutes: React.FC = () => {
 
 function App() {
   return (
-    <AuthProvider>
-      <ToastProvider>
-        <AppRoutes />
-      </ToastProvider>
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <ToastProvider>
+          <AppRoutes />
+        </ToastProvider>
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }
 

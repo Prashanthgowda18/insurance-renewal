@@ -254,18 +254,6 @@ export const CustomerProfile: React.FC = () => {
                 }}
               />
               <button
-                onClick={() => {
-                  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=SHIELD_CRM_CUSTOMER_${customer.id}`;
-                  const win = window.open('', '_blank');
-                  if (win) {
-                    win.document.write(`<html><head><title>Customer QR Badge - ${customer.name}</title></head><body style="text-align:center;font-family:sans-serif;padding:40px;"><h2>${customer.name}</h2><p>Mobile: ${customer.mobile}</p><img src="${qrUrl}"/><br/><br/><button onclick="window.print()">Print QR Badge</button></body></html>`);
-                  }
-                }}
-                className="px-4 py-3 rounded-xl bg-brand-600/10 border border-brand-600/20 text-brand-400 font-bold text-xs hover:bg-brand-600/20 transition-all flex items-center gap-1.5"
-              >
-                📱 QR Badge
-              </button>
-              <button
                 onClick={() => setIsConfirmDeleteOpen(true)}
                 className="px-4 py-3 rounded-xl bg-danger/15 border border-danger/30 text-danger font-bold text-xs hover:bg-danger/25 transition-all flex items-center gap-1.5 shadow-lg shadow-danger/10"
               >
@@ -296,8 +284,6 @@ export const CustomerProfile: React.FC = () => {
           { id: 'overview',  label: 'Overview',          icon: User       },
           { id: 'vehicles',  label: 'Vehicles',          icon: Car        },
           { id: 'policies',  label: 'Policies',          icon: ShieldCheck},
-          { id: 'reminders', label: 'Reminder History',  icon: BellRing   },
-          { id: 'renewals',  label: 'Renewal History',   icon: History    },
           { id: 'documents', label: 'Documents',         icon: FileText   },
           { id: 'timeline',  label: 'Activity',          icon: Clock      },
         ].map(tab => {
@@ -428,58 +414,6 @@ export const CustomerProfile: React.FC = () => {
                       </tr>
                     );
                   })}
-                </tbody>
-              </table>
-            )}
-          </div>
-        )}
-
-        {/* REMINDERS */}
-        {activeTab === 'reminders' && (
-          <div className="glass-card overflow-hidden">
-            {allPolicies.every(p => p.reminders.length === 0) ? (
-              <div className="py-12 text-center text-text-subtle text-sm">No reminder history.</div>
-            ) : (
-              <table className="data-table">
-                <thead><tr>
-                  <th>Policy</th><th>Type</th><th>Scheduled</th><th>Status</th><th>Channels</th>
-                </tr></thead>
-                <tbody>
-                  {allPolicies.map(p => p.reminders.map(rem => (
-                    <tr key={rem.id}>
-                      <td className="font-mono font-semibold text-text-primary">{p.policyNumber}</td>
-                      <td><span className="badge badge-muted uppercase text-[10px]">{rem.reminderType}</span></td>
-                      <td>{new Date(rem.scheduledDate).toLocaleDateString()}</td>
-                      <td><StatusBadge status={rem.sent ? 'sent' : 'pending'} size="sm" /></td>
-                      <td className="text-xs">{rem.notifications.map(n=>`${n.channel}: ${n.status}`).join(' · ')||'—'}</td>
-                    </tr>
-                  )))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        )}
-
-        {/* RENEWALS */}
-        {activeTab === 'renewals' && (
-          <div className="glass-card overflow-hidden">
-            {allPolicies.every(p => p.renewals.length === 0) ? (
-              <div className="py-12 text-center text-text-subtle text-sm">No renewal history.</div>
-            ) : (
-              <table className="data-table">
-                <thead><tr>
-                  <th>Policy</th><th>Renewal Date</th><th>New Expiry</th><th>Renewed By</th><th>Remarks</th>
-                </tr></thead>
-                <tbody>
-                  {allPolicies.map(p => p.renewals.map(ren => (
-                    <tr key={ren.id}>
-                      <td className="font-mono font-semibold text-text-primary">{p.policyNumber}</td>
-                      <td>{new Date(ren.renewalDate).toLocaleDateString()}</td>
-                      <td className="text-success font-medium">{new Date(ren.newExpiryDate).toLocaleDateString()}</td>
-                      <td>{ren.renewedBy}</td>
-                      <td className="italic max-w-xs truncate">{ren.remarks||'—'}</td>
-                    </tr>
-                  )))}
                 </tbody>
               </table>
             )}

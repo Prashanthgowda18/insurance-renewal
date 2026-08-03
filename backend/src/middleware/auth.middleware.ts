@@ -22,8 +22,11 @@ export const authenticateJWT = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    // Bypass authentication entirely and assign dummy admin
-    req.admin = { id: 'admin', email: 'admin@example.com', name: 'Admin', role: 'admin' };
+    // Bypass authentication entirely and use an existing admin to satisfy foreign key constraints
+    const firstAdmin = await prisma.admin.findFirst();
+    if (firstAdmin) {
+      req.admin = firstAdmin;
+    }
     next();
   } catch (error: any) {
     res.status(401).json({ error: { message: 'Authentication failed' } });
